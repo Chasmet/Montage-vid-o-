@@ -1,3 +1,10 @@
+(() => {
+  const bridgeScript = document.createElement('script');
+  bridgeScript.src = 'js/android-bridge.js';
+  bridgeScript.defer = true;
+  document.head.appendChild(bridgeScript);
+})();
+
 function bindEvents() {
   els.videoInput.addEventListener('change', (event) => importSource(event.target.files?.[0]));
   els.undoBtn.addEventListener('click', undo);
