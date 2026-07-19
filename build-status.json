@@ -1,9 +1,10 @@
 {
   "status": "success",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "native_camera": true,
   "single_timeline": true,
+  "original_ratio_preview": true,
   "export": "1080p",
-  "commit": "5a9a0975bd378942a6a7b496a2df45d6111c2a2b",
-  "built_at": "2026-07-19T20:31:36Z"
+  "commit": "6058de0e94259fb595a0ed1b88195c908eeee971",
+  "built_at": "2026-07-19T21:06:32Z"
 }
