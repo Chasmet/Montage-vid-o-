@@ -42,19 +42,13 @@ function bindEvents() {
   els.clearProjectBtn.addEventListener('click', clearProject);
   els.exportBtn.addEventListener('click', exportTimeline);
 
-  els.timelineScroll.addEventListener('scroll', () => {
-    if (timelineScrollSync || isTimelinePreviewing) return;
-    const time = clamp(els.timelineScroll.scrollLeft / TIMELINE_PX_PER_SECOND, 0, timelineDuration());
-    state.timelineTime = time;
-    updateProjectLabels();
-    clearTimeout(timelineSeekTimer);
-    timelineSeekTimer = setTimeout(() => {
-      setTimelineTime(time, { preview: true, syncScroll: false, select: true, force: false });
-    }, 55);
-  }, { passive: true });
-
-  window.addEventListener('resize', () => syncTimelineScrollFromState());
+  // Le défilement et le pincement sont gérés uniquement dans timeline-zoom.js.
+  // L’ancien second gestionnaire provoquait deux calculs et deux recherches vidéo pour chaque mouvement.
+  window.addEventListener('resize', () => syncTimelineScrollFromState(), { passive: true });
   window.addEventListener('beforeunload', () => currentStream?.getTracks().forEach((track) => track.stop()));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isTimelinePreviewing) stopTimelinePreview(true);
+  });
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
