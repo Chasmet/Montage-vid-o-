@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Vérifier la timeline et la caméra native
+      - name: Vérifier la timeline et l’aperçu vidéo
         run: node tests/smoke.mjs
 
       - name: Installer Java 17
@@ -78,15 +78,15 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.2 – timeline unique 1080p" \
-            --notes "Version 2.2 : une seule timeline façon CapCut, import et caméra sur la même ligne, division à la ligne blanche, rotation, volume, duplication, suppression et export direct Full HD 1080p. Télécharge RemixStudio.apk puis remplace l’ancienne version."
+            --title "Remix Studio APK 2.3 – aperçu compact ratio original" \
+            --notes "Version 2.3 : la vidéo importée ou filmée reste dans son ratio d’origine et apparaît dans un cadre plus petit centré, comme dans CapCut. La timeline unique, la caméra native et l’export 1080p sont conservés. Télécharge RemixStudio.apk puis remplace l’ancienne version."
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.2.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status": "success",\n  "version": "2.3.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK timeline unique [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK aperçu ratio original [skip ci]" || exit 0
           git push
