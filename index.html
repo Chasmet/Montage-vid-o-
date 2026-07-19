@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070b13" />
+  <meta name="description" content="Montage vidéo réaction manuel sur mobile avec trois pistes." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Remix Studio</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MONTAGE RÉACTION</p>
+        <h1>Remix Studio</h1>
+      </div>
+      <div class="top-actions">
+        <span id="saveStatus" class="status-pill">Sauvegardé</span>
+        <button id="undoBtn" class="icon-btn" title="Annuler" aria-label="Annuler">↶</button>
+        <button id="redoBtn" class="icon-btn" title="Rétablir" aria-label="Rétablir">↷</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="preview-panel panel">
+        <div class="preview-header">
+          <div>
+            <span class="section-kicker">APERÇU</span>
+            <strong id="previewTitle">Aucune vidéo</strong>
+          </div>
+          <div class="view-switch" role="group" aria-label="Source de prévisualisation">
+            <button class="view-tab active" data-view="source">Importée</button>
+            <button class="view-tab" data-view="camera">Caméra</button>
+            <button class="view-tab" data-view="final">Finale</button>
+          </div>
+        </div>
+
+        <div id="stage" class="stage vertical">
+          <video id="mainVideo" playsinline preload="metadata"></video>
+          <video id="cameraPreview" class="hidden" playsinline muted autoplay></video>
+          <video id="referencePreview" class="reference-preview hidden" playsinline muted></video>
+          <div id="emptyStage" class="empty-stage">
+            <div class="empty-icon">▶</div>
+            <p>Importe une vidéo pour commencer</p>
+          </div>
+          <div id="recordBadge" class="record-badge hidden"><span></span> ENREGISTREMENT</div>
+          <div id="countdown" class="countdown hidden">3</div>
+        </div>
+
+        <div class="transport">
+          <button id="jumpStartBtn" class="transport-btn" aria-label="Début">|◀</button>
+          <button id="playBtn" class="play-btn" aria-label="Lecture">▶</button>
+          <button id="jumpEndBtn" class="transport-btn" aria-label="Fin">▶|</button>
+          <div class="time-readout"><span id="currentTime">00:00.00</span><span>/</span><span id="durationTime">00:00.00</span></div>
+        </div>
+
+        <div class="primary-actions">
+          <label class="action-btn primary" for="videoInput">＋ Importer vidéo</label>
+          <input id="videoInput" type="file" accept="video/*" hidden />
+          <button id="cameraBtn" class="action-btn">● Ouvrir caméra</button>
+          <button id="recordBtn" class="action-btn danger" disabled>● Enregistrer</button>
+          <button id="stopRecordBtn" class="action-btn" disabled>■ Stop</button>
+        </div>
+      </section>
+
+      <section class="editor-panel panel">
+        <div class="panel-title-row">
+          <div>
+            <span class="section-kicker">DÉCOUPE MANUELLE</span>
+            <h2>Points d’entrée et de sortie</h2>
+          </div>
+          <button id="markCurrentBtn" class="ghost-btn">Marquer le temps</button>
+        </div>
+
+        <div class="trim-grid">
+          <label>
+            <span>Début</span>
+            <input id="trimStartNumber" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>
+            <span>Fin</span>
+            <input id="trimEndNumber" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>
+            <span>Nom du passage</span>
+            <input id="clipLabel" type="text" maxlength="40" placeholder="Ex. Réaction surprise" />
+          </label>
+        </div>
+
+        <div class="range-stack">
+          <div class="range-labels"><span>Poignée début</span><span>Poignée fin</span></div>
+          <input id="trimStartRange" type="range" min="0" max="1" step="0.01" value="0" />
+          <input id="trimEndRange" type="range" min="0" max="1" step="0.01" value="1" />
+        </div>
+
+        <div class="trim-actions">
+          <button id="setInBtn" class="ghost-btn">Début = curseur</button>
+          <button id="setOutBtn" class="ghost-btn">Fin = curseur</button>
+          <button id="keepSourceBtn" class="action-btn primary">✂ Garder sur piste importée</button>
+          <button id="addSelectedToFinalBtn" class="action-btn success">＋ Ajouter à la liste finale</button>
+        </div>
+      </section>
+
+      <section class="settings-panel panel">
+        <div class="panel-title-row">
+          <div>
+            <span class="section-kicker">CAMÉRA & SON</span>
+            <h2>Réglages d’enregistrement</h2>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <label>
+            <span>Orientation caméra</span>
+            <select id="cameraOrientation">
+              <option value="auto">Automatique selon la vidéo</option>
+              <option value="vertical">Verticale 9:16</option>
+              <option value="horizontal">Horizontale 16:9</option>
+            </select>
+          </label>
+          <label>
+            <span>Caméra</span>
+            <select id="cameraSelect"><option value="">Automatique</option></select>
+          </label>
+          <label>
+            <span>Micro</span>
+            <select id="micSelect"><option value="">Micro du téléphone</option></select>
+          </label>
+          <label>
+            <span>Compte à rebours</span>
+            <select id="countdownSelect">
+              <option value="0">Aucun</option>
+              <option value="3" selected>3 secondes</option>
+              <option value="5">5 secondes</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <input id="referenceToggle" type="checkbox" />
+            <span>Afficher la vidéo importée en référence muette</span>
+          </label>
+          <label class="toggle-row">
+            <input id="noiseToggle" type="checkbox" checked />
+            <span>Réduction du bruit et anti-écho</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="timeline-panel panel">
+        <div class="timeline-heading">
+          <div>
+            <span class="section-kicker">3 PISTES</span>
+            <h2>Construction du montage</h2>
+          </div>
+          <div class="timeline-tools">
+            <button id="clearProjectBtn" class="ghost-btn danger-text">Réinitialiser</button>
+            <button id="previewFinalBtn" class="action-btn">▶ Lire la finale</button>
+          </div>
+        </div>
+
+        <div class="track source-track">
+          <div class="track-label"><span class="track-dot"></span><div><strong>Piste importée</strong><small>Extraits gardés</small></div></div>
+          <div id="sourceTrack" class="clip-lane"><div class="lane-empty">Découpe un passage de la vidéo importée</div></div>
+        </div>
+
+        <div class="track camera-track">
+          <div class="track-label"><span class="track-dot"></span><div><strong>Piste cam</strong><small>Prises enregistrées</small></div></div>
+          <div id="cameraTrack" class="clip-lane"><div class="lane-empty">Tes enregistrements apparaîtront ici</div></div>
+        </div>
+
+        <div class="track final-track">
+          <div class="track-label"><span class="track-dot"></span><div><strong>Liste finale</strong><small>Ordre du téléchargement</small></div></div>
+          <div id="finalTrack" class="clip-lane sortable"><div class="lane-empty">Ajoute les meilleurs extraits dans l’ordre</div></div>
+        </div>
+      </section>
+
+      <section class="clip-inspector panel">
+        <div class="panel-title-row">
+          <div>
+            <span class="section-kicker">CLIP SÉLECTIONNÉ</span>
+            <h2 id="inspectorTitle">Aucun clip</h2>
+          </div>
+        </div>
+        <div class="inspector-grid">
+          <label><span>Volume</span><input id="volumeRange" type="range" min="0" max="1.5" step="0.05" value="1" disabled /></label>
+          <label><span>Recadrage</span><select id="fitSelect" disabled><option value="cover">Remplir l’écran</option><option value="contain">Afficher en entier</option></select></label>
+          <label><span>Transition</span><select id="transitionSelect" disabled><option value="none">Aucune</option><option value="fade">Fondu court</option></select></label>
+          <label class="toggle-row"><input id="muteToggle" type="checkbox" disabled /><span>Couper le son de ce clip</span></label>
+        </div>
+        <div class="inspector-actions">
+          <button id="moveLeftBtn" class="ghost-btn" disabled>← Déplacer</button>
+          <button id="moveRightBtn" class="ghost-btn" disabled>Déplacer →</button>
+          <button id="duplicateBtn" class="ghost-btn" disabled>Dupliquer</button>
+          <button id="deleteClipBtn" class="ghost-btn danger-text" disabled>Supprimer</button>
+        </div>
+      </section>
+
+      <section class="export-panel panel">
+        <div>
+          <span class="section-kicker">EXPORT</span>
+          <h2>Télécharger la vidéo finale</h2>
+          <p class="muted">L’application choisit automatiquement MP4 lorsque le téléphone l’accepte, sinon WebM haute qualité.</p>
+        </div>
+        <div class="export-controls">
+          <label><span>Format</span><select id="outputAspect"><option value="auto">Comme la vidéo importée</option><option value="vertical">Vertical 9:16</option><option value="horizontal">Horizontal 16:9</option></select></label>
+          <label><span>Qualité</span><select id="qualitySelect"><option value="720">HD 720p</option><option value="1080">Full HD 1080p</option></select></label>
+          <button id="exportBtn" class="export-btn">⬇ Télécharger vidéo</button>
+        </div>
+        <div id="exportProgressWrap" class="progress-wrap hidden"><div class="progress-info"><span id="exportStatus">Préparation…</span><span id="exportPercent">0%</span></div><progress id="exportProgress" max="100" value="0"></progress></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="js/core.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/tracks.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/init.js"></script>
+</body>
+</html>
