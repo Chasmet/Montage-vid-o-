@@ -1,6 +1,17 @@
 # Remix Studio
 
-Application mobile-first de montage vidéo réaction manuel.
+[![Construire APK Android](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml/badge.svg)](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml)
+
+Application Android et web mobile-first de montage vidéo réaction manuel.
+
+## Télécharger l’APK Android
+
+- Page de la dernière version : https://github.com/Chasmet/Montage-vid-o-/releases/tag/latest-apk
+- Téléchargement direct : https://github.com/Chasmet/Montage-vid-o-/releases/download/latest-apk/RemixStudio.apk
+
+Sur Android, autoriser temporairement l’installation d’applications provenant de GitHub ou du navigateur utilisé, puis ouvrir `RemixStudio.apk`.
+
+L’APK est reconstruit automatiquement après chaque modification de la branche `main`. Il est également disponible dans **Actions > Construire APK Android > Artifacts > Remix-Studio-APK**.
 
 ## Fonctions incluses
 
@@ -17,11 +28,20 @@ Application mobile-first de montage vidéo réaction manuel.
 - Aperçu complet de la liste finale.
 - Annuler/rétablir.
 - Sauvegarde automatique locale dans IndexedDB.
-- Installation comme PWA sur Android.
-- Export vidéo local : MP4 lorsqu’il est pris en charge par le navigateur, sinon WebM.
+- Export dans le dossier `Téléchargements/RemixStudio` depuis l’APK.
+- Fonctionnement hors ligne : l’interface web est intégrée dans l’APK.
 - Fonctionnement sans compte et sans envoi des vidéos vers un serveur.
 
-## Lancer en local
+## Fonctions Android ajoutées
+
+- Permissions caméra et micro gérées par Android.
+- Sélecteur de vidéos du téléphone.
+- Pont natif pour enregistrer les vidéos exportées dans Téléchargements.
+- Écran maintenu allumé pendant le montage et le rendu.
+- Rotation verticale ou horizontale autorisée.
+- WebView sécurisée sur une origine HTTPS locale fournie par AndroidX WebKit.
+
+## Lancer la version web en local
 
 ```bash
 python3 -m http.server 8080
@@ -29,7 +49,7 @@ python3 -m http.server 8080
 
 Ouvrir ensuite `http://localhost:8080`.
 
-## Publier avec GitHub Pages
+## Publier la version web avec GitHub Pages
 
 Dans GitHub :
 
@@ -38,6 +58,6 @@ Dans GitHub :
 3. Choisir **Deploy from a branch**.
 4. Sélectionner la branche `main` et le dossier `/root`.
 
-## Limite de la version web
+## Construction Android
 
-Le format final dépend de `MediaRecorder` sur le téléphone. Chrome Android exporte souvent en WebM. La future version APK native utilisera Android Media3/FFmpeg pour garantir le MP4 H.264, accélérer le rendu et mieux gérer les longues vidéos.
+Le workflow `.github/workflows/build-apk.yml` installe Java 17, Android SDK 35 et Gradle 8.9, construit `app-debug.apk`, le renomme `RemixStudio.apk`, conserve l’artefact pendant 90 jours et remplace automatiquement la version GitHub `latest-apk`.
