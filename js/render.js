@@ -85,30 +85,35 @@ async function previewTimeline(startProjectTime = 0) {
   }
 }
 
-function drawVideoFrame(ctx, video, width, height, fit = 'cover', alpha = 1, rotation = 0) {
+function drawVideoFrame(ctx, video, width, height, fit = 'cover', alpha = 1, rotation = 0, layout = null) {
   const vw = video.videoWidth || width;
   const vh = video.videoHeight || height;
   const normalizedRotation = ((Number(rotation) % 360) + 360) % 360;
-  const sideways = normalizedRotation === 90 || normalizedRotation === 270;
+  const quarterTurn = ((Math.round(normalizedRotation / 90) * 90) % 360 + 360) % 360;
+  const sideways = quarterTurn === 90 || quarterTurn === 270;
   const availableWidth = sideways ? height : width;
   const availableHeight = sideways ? width : height;
-  const scale = fit === 'contain'
+  const baseScale = fit === 'contain'
     ? Math.min(availableWidth / vw, availableHeight / vh)
     : Math.max(availableWidth / vw, availableHeight / vh);
-  const drawWidth = vw * scale;
-  const drawHeight = vh * scale;
+  const zoom = clamp(layout?.zoom ?? 1, 0.5, 3);
+  const drawWidth = vw * baseScale * zoom;
+  const drawHeight = vh * baseScale * zoom;
+  const x = width / 2 + (clamp(layout?.x ?? 0, -150, 150) / 100) * (width / 2);
+  const y = height / 2 + (clamp(layout?.y ?? 0, -150, 150) / 100) * (height / 2);
 
   ctx.save();
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
   ctx.globalAlpha = alpha;
-  ctx.translate(width / 2, height / 2);
+  ctx.translate(x, y);
   ctx.rotate((normalizedRotation * Math.PI) / 180);
   ctx.drawImage(video, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   ctx.restore();
 }
 
 function outputDimensions() {
+  if (typeof projectOutputDimensions === 'function') return projectOutputDimensions();
   let automatic = state.source?.orientation || null;
   if (!automatic) {
     const first = state.timelineSegments[0];
@@ -198,12 +203,16 @@ async function exportTimeline() {
       await seekVideo(video, segment.start);
       await video.play();
       const segmentLength = Math.max(0.01, segmentDuration(segment));
+      const layout = typeof getClipLayout === 'function' ? getClipLayout(segment.id) : null;
+      const rotation = typeof totalClipRotation === 'function'
+        ? totalClipRotation(segment)
+        : Number(segment.rotation || 0);
       await new Promise((resolve) => {
         const render = () => {
           const local = clamp(video.currentTime - segment.start, 0, segmentLength);
           let alpha = 1;
           if (segment.transition === 'fade') alpha = Math.min(1, local / 0.22, (segmentLength - local) / 0.22);
-          drawVideoFrame(ctx, video, width, height, segment.fit || 'cover', Math.max(0, alpha), segment.rotation || 0);
+          drawVideoFrame(ctx, video, width, height, segment.fit || 'cover', Math.max(0, alpha), rotation, layout);
           const progress = ((completedDuration + local) / totalDuration) * 100;
           els.exportProgress.value = progress;
           els.exportPercent.textContent = `${Math.min(99, Math.round(progress))}%`;
