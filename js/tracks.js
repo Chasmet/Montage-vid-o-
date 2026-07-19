@@ -1,3 +1,54 @@
+const thumbnailCache = new Map();
+
+function thumbnailKey(item) {
+  return `${item.type}:${item.mediaId}:${Number(item.start || 0).toFixed(2)}`;
+}
+
+function attachThumbnail(target, item) {
+  const key = thumbnailKey(item);
+  if (thumbnailCache.has(key)) {
+    target.style.backgroundImage = `url(${thumbnailCache.get(key)})`;
+    return;
+  }
+  const media = getMediaByRef(item.type, item.mediaId);
+  if (!media?.url) return;
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = media.url;
+  const cleanup = () => {
+    video.removeAttribute('src');
+    video.load();
+  };
+  video.addEventListener('loadedmetadata', () => {
+    const targetTime = clamp(item.start || 0, 0, Math.max(0, (video.duration || 0) - 0.05));
+    video.currentTime = targetTime;
+  }, { once: true });
+  video.addEventListener('seeked', () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 136;
+      const context = canvas.getContext('2d');
+      const vw = video.videoWidth || 240;
+      const vh = video.videoHeight || 136;
+      const scale = Math.max(canvas.width / vw, canvas.height / vh);
+      const width = vw * scale;
+      const height = vh * scale;
+      context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      const data = canvas.toDataURL('image/jpeg', 0.68);
+      thumbnailCache.set(key, data);
+      target.style.backgroundImage = `url(${data})`;
+    } catch (error) {
+      console.debug('Miniature indisponible', error);
+    } finally {
+      cleanup();
+    }
+  }, { once: true });
+  video.addEventListener('error', cleanup, { once: true });
+}
+
 function clipCard(item, collection, index = 0) {
   const card = document.createElement('article');
   card.className = `clip-card${state.selected?.collection === collection && state.selected?.id === item.id ? ' selected' : ''}`;
@@ -11,6 +62,9 @@ function clipCard(item, collection, index = 0) {
     order.textContent = String(index + 1);
     card.append(order);
   }
+  const thumb = document.createElement('div');
+  thumb.className = 'clip-thumb';
+  attachThumbnail(thumb, item);
   const top = document.createElement('div');
   top.className = 'clip-top';
   const type = document.createElement('span');
@@ -26,7 +80,7 @@ function clipCard(item, collection, index = 0) {
   const times = document.createElement('div');
   times.className = 'clip-times';
   times.textContent = `${formatTime(item.start, true)} → ${formatTime(item.end, true)}`;
-  card.append(top, title, times);
+  card.append(thumb, top, title, times);
   card.addEventListener('click', () => selectItem(collection, item.id));
   card.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') selectItem(collection, item.id);
@@ -76,10 +130,10 @@ function renderLane(container, items, collection, rawCamera = false) {
     const empty = document.createElement('div');
     empty.className = 'lane-empty';
     empty.textContent = collection === 'sourceSegments'
-      ? 'Découpe un passage de la vidéo importée'
+      ? 'Importe puis découpe un passage'
       : collection === 'cameraClips'
-        ? 'Tes enregistrements apparaîtront ici'
-        : 'Ajoute les meilleurs extraits dans l’ordre';
+        ? 'Appuie sur Caméra pour filmer ta réaction'
+        : 'Ajoute les extraits dans l’ordre de la vidéo finale';
     container.append(empty);
     return;
   }
@@ -100,7 +154,7 @@ function renderInspector() {
     els.inspectorTitle.textContent = 'Aucun clip';
     return;
   }
-  els.inspectorTitle.textContent = item.label || 'Clip sélectionné';
+  els.inspectorTitle.textContent = item.label || item.name || 'Clip sélectionné';
   els.volumeRange.value = String(item.volume ?? 1);
   els.fitSelect.value = item.fit || 'cover';
   els.transitionSelect.value = item.transition || 'none';
