@@ -1,3 +1,12 @@
+const editorUiCache = {
+  currentTime: '',
+  durationTime: '',
+  projectDuration: '',
+  timelinePosition: '',
+  clipCount: '',
+  selectedId: null
+};
+
 function setStageOrientation(orientation) {
   els.stage.classList.toggle('vertical', orientation !== 'horizontal');
   els.stage.classList.toggle('horizontal', orientation === 'horizontal');
@@ -22,10 +31,25 @@ function applyPreviewRotation(segment = null) {
   els.mainVideo.style.objectFit = segment?.fit || 'cover';
 }
 
-function applyPreviewMedia(media, type, segment = null, preserveTimelinePreview = false, sourceTime = null) {
+function seekPreviewVideo(target, fast = false) {
+  const difference = Math.abs((els.mainVideo.currentTime || 0) - target);
+  if (difference <= 0.025) return;
+  try {
+    if (fast && difference > 0.18 && typeof els.mainVideo.fastSeek === 'function') {
+      els.mainVideo.fastSeek(target);
+    } else {
+      els.mainVideo.currentTime = target;
+    }
+  } catch {
+    // Les métadonnées ne sont peut-être pas encore prêtes.
+  }
+}
+
+function applyPreviewMedia(media, type, segment = null, preserveTimelinePreview = false, sourceTime = null, fastSeek = false) {
   if (!media?.url) {
     els.mainVideo.pause();
     els.mainVideo.removeAttribute('src');
+    els.mainVideo.removeAttribute('data-media-url');
     els.mainVideo.load();
     els.mainVideo.style.transform = '';
     els.emptyStage.classList.remove('hidden');
@@ -35,35 +59,37 @@ function applyPreviewMedia(media, type, segment = null, preserveTimelinePreview 
   }
 
   if (!preserveTimelinePreview) stopTimelinePreview();
-  els.cameraPreview.classList.add('hidden');
-  els.mainVideo.classList.remove('hidden');
-  els.emptyStage.classList.add('hidden');
-
   const segmentId = segment?.id || `${type}:${media.id || 'source'}`;
   const needsSource = els.mainVideo.dataset.mediaUrl !== media.url;
+  const needsVisualRefresh = needsSource || activePreviewSegmentId !== segmentId;
+
+  if (needsVisualRefresh) {
+    els.cameraPreview.classList.add('hidden');
+    els.mainVideo.classList.remove('hidden');
+    els.emptyStage.classList.add('hidden');
+  }
+
   if (needsSource) {
     els.mainVideo.pause();
     els.mainVideo.src = media.url;
     els.mainVideo.dataset.mediaUrl = media.url;
+    els.mainVideo.preload = 'auto';
   }
 
-  const orientation = effectiveOrientation(media, segment?.rotation || 0);
-  setStageOrientation(orientation);
-  applyPreviewRotation(segment);
-  els.mainVideo.volume = segment?.muted ? 0 : clamp(segment?.volume ?? 1, 0, 1);
-  els.mainVideo.muted = Boolean(segment?.muted);
-  els.previewTitle.textContent = segment?.label || media.name || (type === 'source' ? 'Vidéo importée' : 'Prise caméra');
-  els.selectedClipLabel.textContent = segment?.label || media.name || 'Clip';
-  state.activeMedia = { type, mediaId: type === 'source' ? 'source' : media.id };
-  activePreviewSegmentId = segmentId;
+  if (needsVisualRefresh) {
+    const orientation = effectiveOrientation(media, segment?.rotation || 0);
+    setStageOrientation(orientation);
+    applyPreviewRotation(segment);
+    els.mainVideo.volume = segment?.muted ? 0 : clamp(segment?.volume ?? 1, 0, 1);
+    els.mainVideo.muted = Boolean(segment?.muted);
+    els.previewTitle.textContent = segment?.label || media.name || (type === 'source' ? 'Vidéo importée' : 'Prise caméra');
+    els.selectedClipLabel.textContent = segment?.label || media.name || 'Clip';
+    state.activeMedia = { type, mediaId: type === 'source' ? 'source' : media.id };
+    activePreviewSegmentId = segmentId;
+  }
 
   const target = clamp(sourceTime ?? segment?.start ?? 0, 0, media.duration || 0);
-  const seek = () => {
-    if (Math.abs((els.mainVideo.currentTime || 0) - target) > 0.025) {
-      try { els.mainVideo.currentTime = target; } catch { /* métadonnées pas encore prêtes */ }
-    }
-    updateTimeDisplay();
-  };
+  const seek = () => seekPreviewVideo(target, fastSeek);
   if (els.mainVideo.readyState >= 1) seek();
   else els.mainVideo.addEventListener('loadedmetadata', seek, { once: true });
 }
@@ -104,44 +130,68 @@ function projectTimeForSegment(segmentId, sourceTime = null) {
   return 0;
 }
 
+function setTextIfChanged(element, cacheKey, value) {
+  if (!element || editorUiCache[cacheKey] === value) return;
+  editorUiCache[cacheKey] = value;
+  element.textContent = value;
+}
+
 function updateProjectLabels() {
   const total = timelineDuration();
-  els.currentTime.textContent = formatTime(state.timelineTime, true);
-  els.durationTime.textContent = formatTime(total, true);
-  els.projectDurationLabel.textContent = formatTime(total);
-  els.timelinePositionLabel.textContent = formatTime(state.timelineTime, true);
-  els.timelineClipCount.textContent = `${state.timelineSegments.length} clip${state.timelineSegments.length > 1 ? 's' : ''}`;
+  const current = formatTime(state.timelineTime, true);
+  const durationPrecise = formatTime(total, true);
+  const durationShort = formatTime(total);
+  const clipCount = `${state.timelineSegments.length} clip${state.timelineSegments.length > 1 ? 's' : ''}`;
+
+  setTextIfChanged(els.currentTime, 'currentTime', current);
+  setTextIfChanged(els.durationTime, 'durationTime', durationPrecise);
+  setTextIfChanged(els.projectDurationLabel, 'projectDuration', durationShort);
+  setTextIfChanged(els.timelinePositionLabel, 'timelinePosition', current);
+  setTextIfChanged(els.timelineClipCount, 'clipCount', clipCount);
 }
 
 function setTimelineTime(projectTime, options = {}) {
-  const { preview = true, syncScroll = false, select = true, force = false } = options;
+  const {
+    preview = true,
+    syncScroll = false,
+    select = true,
+    force = false,
+    lightweight = false
+  } = options;
   const total = timelineDuration();
   state.timelineTime = clamp(projectTime, 0, total);
   const info = timelineInfoAt(state.timelineTime);
 
   if (!info) {
+    const selectionChanged = state.selectedId !== null;
     state.selectedId = null;
     state.activeMedia = null;
     applyPreviewMedia(null);
     updateProjectLabels();
-    renderTimelineSelection();
-    renderInspector();
+    if (!lightweight || selectionChanged) {
+      renderTimelineSelection();
+      renderInspector();
+    }
     if (syncScroll) syncTimelineScrollFromState();
     return;
   }
 
+  const previousSelectedId = state.selectedId;
   if (select) state.selectedId = info.segment.id;
+  const selectionChanged = previousSelectedId !== state.selectedId;
   const media = getMediaByRef(info.segment.type, info.segment.mediaId);
   if (preview && media?.url) {
     const changedSegment = activePreviewSegmentId !== info.segment.id;
     if (changedSegment || force || Math.abs((els.mainVideo.currentTime || 0) - info.sourceTime) > 0.04) {
-      applyPreviewMedia(media, info.segment.type, info.segment, true, info.sourceTime);
+      applyPreviewMedia(media, info.segment.type, info.segment, true, info.sourceTime, lightweight);
     }
   }
 
   updateProjectLabels();
-  renderTimelineSelection();
-  renderInspector();
+  if (!lightweight || selectionChanged) {
+    renderTimelineSelection();
+    renderInspector();
+  }
   if (syncScroll) syncTimelineScrollFromState();
 }
 
