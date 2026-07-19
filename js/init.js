@@ -85,7 +85,21 @@ async function init() {
   }
 }
 
-init().catch((error) => {
-  console.error(error);
-  showToast('L’application n’a pas pu démarrer correctement.');
-});
+function loadFinalAudit() {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-remix-final-audit]')) return resolve();
+    const script = document.createElement('script');
+    script.src = 'js/final-audit.js';
+    script.dataset.remixFinalAudit = '2.6.0';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('La couche de sécurité finale n’a pas pu être chargée.'));
+    document.body.appendChild(script);
+  });
+}
+
+init()
+  .then(loadFinalAudit)
+  .catch((error) => {
+    console.error(error);
+    showToast('L’application n’a pas pu démarrer correctement.');
+  });

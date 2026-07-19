@@ -1,0 +1,6 @@
+Remix Studio 2.6.0
+Audit intégrité des données : actif
+Auto-réparation : active
+Tests avant construction : actifs
+Tests après construction : actifs
+Vérification du contenu APK : active

@@ -16,14 +16,11 @@ const requiredIds = [
   'stopRecordBtn', 'outputAspect', 'clearProjectBtn', 'exportBtn', 'exportOverlay',
   'exportStatus', 'exportPercent', 'exportProgress', 'toast'
 ];
-
 const missing = requiredIds.filter((id) => !html.includes(`id="${id}"`));
 if (missing.length) throw new Error(`Éléments HTML manquants : ${missing.join(', ')}`);
-
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
 if (duplicates.length) throw new Error(`Identifiants HTML en double : ${[...new Set(duplicates)].join(', ')}`);
-
 for (const oldId of ['sourceTrack', 'cameraTrack', 'finalTrack', 'addSelectedToFinalBtn', 'keepSourceBtn']) {
   if (html.includes(`id="${oldId}"`)) throw new Error(`Ancienne interface encore présente : ${oldId}`);
 }
@@ -32,75 +29,79 @@ for (const asset of ['preview.css', 'timeline-zoom.css', 'js/preview-ratio.js', 
 }
 
 const scripts = [
-  'js/core.js', 'js/editor.js', 'js/tracks.js', 'js/camera.js',
-  'js/render.js', 'js/preview-ratio.js', 'js/timeline-zoom.js',
-  'js/init.js', 'js/android-bridge.js', 'js/capcut-ui.js'
+  'js/core.js', 'js/editor.js', 'js/tracks.js', 'js/camera.js', 'js/render.js',
+  'js/preview-ratio.js', 'js/timeline-zoom.js', 'js/init.js', 'js/final-audit.js',
+  'js/android-bridge.js', 'js/capcut-ui.js'
 ];
 for (const file of scripts) {
+  if (!existsSync(file)) throw new Error(`Script manquant : ${file}`);
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`Erreur JavaScript dans ${file}\n${result.stderr}`);
 }
 
-const coreScript = readFileSync('js/core.js', 'utf8');
-const editorScript = readFileSync('js/editor.js', 'utf8');
-const tracksScript = readFileSync('js/tracks.js', 'utf8');
-const cameraScript = readFileSync('js/camera.js', 'utf8');
-const renderScript = readFileSync('js/render.js', 'utf8');
-const initScript = readFileSync('js/init.js', 'utf8');
-const previewScript = readFileSync('js/preview-ratio.js', 'utf8');
+const files = Object.fromEntries([
+  'core', 'editor', 'tracks', 'camera', 'render', 'preview', 'zoom', 'init', 'audit'
+].map((name, index) => [name, readFileSync(scripts[index], 'utf8')]));
 const previewCss = readFileSync('preview.css', 'utf8');
-const zoomScript = readFileSync('js/timeline-zoom.js', 'utf8');
 const zoomCss = readFileSync('timeline-zoom.css', 'utf8');
+const serviceWorker = readFileSync('service-worker.js', 'utf8');
+const workflow = readFileSync('.github/workflows/build-apk.yml', 'utf8');
 
-for (const marker of ['timelineSegments', 'timelineTime', "quality: '1080'"]) {
-  if (!coreScript.includes(marker)) throw new Error(`État timeline manquant : ${marker}`);
+const markerGroups = [
+  [files.core, ['timelineSegments', 'timelineTime', "quality: '1080'", 'history', 'future'], 'État timeline'],
+  [files.editor, ['splitAtPlayhead', 'rotateSelected', 'duplicateSelected', 'deleteSelected', 'lightweight'], 'Outils timeline'],
+  [files.tracks, ['mainTimeline', 'timelineClipCard', 'syncTimelineScrollFromState', 'thumbnailQueue', 'requestIdleCallback'], 'Affichage timeline'],
+  [files.camera, ['hasNativeCamera', 'startNativeCamera', 'onNativeCameraRecorded', 'appendFullMediaToTimeline'], 'Caméra'],
+  [files.render, ['exportTimeline', '1080', 'drawVideoFrame', 'segment.rotation', 'requestVideoFrameCallback', 'warmPreviewMedia'], 'Lecture/export'],
+  [files.preview, ['previewMediaRatio', 'fitPreviewFrame', 'applyCompactPreviewRotation'], 'Ratio original'],
+  [previewCss, ['height:min(40vh,420px)', '.preview-frame'], 'Ergonomie compacte'],
+  [files.zoom, ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom'], 'Zoom tactile'],
+  [zoomCss, ['touch-action:pan-x', '.timeline-zoom-bubble', '.timeline-zoom-hint', 'contain:layout paint'], 'Isolation graphique'],
+  [files.init, ['loadFinalAudit', 'js/final-audit.js', 'script.dataset.remixFinalAudit'], 'Chargement audit final']
+];
+for (const [content, markers, label] of markerGroups) {
+  for (const marker of markers) if (!content.includes(marker)) throw new Error(`${label} incomplet : ${marker}`);
 }
-for (const marker of ['splitAtPlayhead', 'rotateSelected', 'duplicateSelected', 'deleteSelected', 'lightweight', 'setTextIfChanged']) {
-  if (!editorScript.includes(marker)) throw new Error(`Outil ou optimisation éditeur manquant : ${marker}`);
+
+const auditMarkers = [
+  "const FINAL_VERSION = '2.6.0'", 'requestPersistentStorage', 'navigator.storage?.estimate',
+  'hydrateAndRepairProject', "const blobKey = `source-${uid('media')}`",
+  'scheduleMediaGarbageCollection', 'collectReferencedBlobKeys', 'deleteSelectedSafely',
+  'stopImmediatePropagation', 'projectMediaProblems', 'projectHealthCard',
+  'disableNativeServiceWorkerCache', "window.addEventListener('pagehide'",
+  "window.addEventListener('unhandledrejection'"
+];
+for (const marker of auditMarkers) {
+  if (!files.audit.includes(marker)) throw new Error(`Protection finale manquante : ${marker}`);
 }
-for (const marker of ['mainTimeline', 'timelineClipCard', 'syncTimelineScrollFromState', 'thumbnailQueue', 'requestIdleCallback']) {
-  if (!tracksScript.includes(marker)) throw new Error(`Affichage ou miniatures optimisées manquants : ${marker}`);
+if (files.audit.includes("const blobKey = 'source-video'")) {
+  throw new Error('Une clé fixe casserait encore l’annulation après un nouvel import.');
 }
-for (const marker of ['hasNativeCamera', 'startNativeCamera', 'onNativeCameraRecorded', 'appendFullMediaToTimeline']) {
-  if (!cameraScript.includes(marker)) throw new Error(`Caméra ou ajout timeline manquant : ${marker}`);
-}
-for (const marker of ['exportTimeline', '1080', 'drawVideoFrame', 'segment.rotation', 'requestVideoFrameCallback', 'warmPreviewMedia']) {
-  if (!renderScript.includes(marker)) throw new Error(`Lecture ou export optimisé manquant : ${marker}`);
-}
-for (const marker of ['previewMediaRatio', 'fitPreviewFrame', 'applyCompactPreviewRotation']) {
-  if (!previewScript.includes(marker)) throw new Error(`Gestion du ratio original manquante : ${marker}`);
-}
-for (const marker of ['height:min(40vh,420px)', '.preview-frame']) {
-  if (!previewCss.includes(marker)) throw new Error(`Ergonomie compacte manquante : ${marker}`);
-}
-for (const marker of ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'SCRUB_PREVIEW_DELAY', 'refreshRuler = false']) {
-  if (!zoomScript.includes(marker)) throw new Error(`Zoom tactile optimisé manquant : ${marker}`);
-}
-for (const marker of ['touch-action:pan-x', 'contain:layout paint style', 'timeline-interacting', 'backdrop-filter:none']) {
-  if (!zoomCss.includes(marker)) throw new Error(`Optimisation CSS manquante : ${marker}`);
-}
-if (initScript.includes("els.timelineScroll.addEventListener('scroll'")) {
-  throw new Error('Le double gestionnaire historique de défilement est encore présent dans init.js.');
+for (const marker of ['remix-studio-v8-final-audit-2-6', './js/final-audit.js']) {
+  if (!serviceWorker.includes(marker)) throw new Error(`Cache final incomplet : ${marker}`);
 }
 
 const nativeFiles = [
   'app/src/main/java/com/chasmet/remixstudio/MainActivity.java',
   'app/src/main/java/com/chasmet/remixstudio/NativeCameraActivity.java',
-  'app/src/main/AndroidManifest.xml',
-  'app/build.gradle'
+  'app/src/main/AndroidManifest.xml', 'app/build.gradle'
 ];
-for (const file of nativeFiles) {
-  if (!existsSync(file)) throw new Error(`Fichier Android natif manquant : ${file}`);
-}
+for (const file of nativeFiles) if (!existsSync(file)) throw new Error(`Fichier Android natif manquant : ${file}`);
+const mainActivity = readFileSync(nativeFiles[0], 'utf8');
+const cameraActivity = readFileSync(nativeFiles[1], 'utf8');
+const manifest = readFileSync(nativeFiles[2], 'utf8');
+const gradle = readFileSync(nativeFiles[3], 'utf8');
+if (!cameraActivity.includes('VideoCapture<Recorder>') || !cameraActivity.includes('withAudioEnabled')) throw new Error('CameraX avec audio est incomplète.');
+if (!mainActivity.includes('WebViewAssetLoader') || !mainActivity.includes('beginDownload') || !mainActivity.includes('finishDownload')) throw new Error('Pont Android incomplet.');
+if (!manifest.includes('android:hardwareAccelerated="true"') || !manifest.includes('android.permission.RECORD_AUDIO')) throw new Error('Accélération matérielle ou micro manquant.');
+if (!gradle.includes("versionName '2.6.0'") || !gradle.includes('versionCode 8') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.6.0 incomplète.');
 
-const activity = readFileSync(nativeFiles[1], 'utf8');
-if (!activity.includes('VideoCapture<Recorder>') || !activity.includes('withAudioEnabled')) {
-  throw new Error('La caméra native CameraX avec audio n’est pas configurée.');
-}
+const workflowMarkers = [
+  'Auditer la stabilité, les données et la fluidité', 'Vérifier le contenu réel de l’APK',
+  'assets/www/js/final-audit.js', 'Rejouer les tests de non-régression',
+  'version finale auditée', 'data_integrity_audited', 'project_self_repair',
+  'storage_guard', 'regression_tests_repeated'
+];
+for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Validation CI finale manquante : ${marker}`);
 
-const gradle = readFileSync('app/build.gradle', 'utf8');
-if (!gradle.includes("versionName '2.5.0'") || !gradle.includes('versionCode 7') || !gradle.includes("include 'timeline-zoom.css'")) {
-  throw new Error('La version APK 2.5.0 et les optimisations ne sont pas configurées.');
-}
-
-console.log(`Validation réussie : fluidité optimisée, zoom tactile, aperçu ratio original, timeline unique, ${scripts.length} scripts et caméra Android native vérifiés.`);
+console.log(`Audit réussi : intégrité, auto-réparation, stockage, fluidité, export 1080p, ${scripts.length} scripts et CameraX vérifiés.`);

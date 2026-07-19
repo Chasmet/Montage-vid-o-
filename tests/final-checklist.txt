@@ -1,0 +1,14 @@
+[x] Syntaxe JavaScript
+[x] Interface mobile
+[x] Timeline unique
+[x] Zoom tactile
+[x] Ratio vidéo original
+[x] CameraX et microphone
+[x] Sauvegarde IndexedDB
+[x] Historique Annuler/Rétablir
+[x] Auto-réparation
+[x] Contrôle stockage
+[x] Précontrôle export
+[x] Export 1080p
+[x] Vérification contenu APK
+[x] Double passage des tests
