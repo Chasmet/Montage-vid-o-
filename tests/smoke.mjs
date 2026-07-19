@@ -46,6 +46,7 @@ const editorScript = readFileSync('js/editor.js', 'utf8');
 const tracksScript = readFileSync('js/tracks.js', 'utf8');
 const cameraScript = readFileSync('js/camera.js', 'utf8');
 const renderScript = readFileSync('js/render.js', 'utf8');
+const initScript = readFileSync('js/init.js', 'utf8');
 const previewScript = readFileSync('js/preview-ratio.js', 'utf8');
 const previewCss = readFileSync('preview.css', 'utf8');
 const zoomScript = readFileSync('js/timeline-zoom.js', 'utf8');
@@ -54,17 +55,17 @@ const zoomCss = readFileSync('timeline-zoom.css', 'utf8');
 for (const marker of ['timelineSegments', 'timelineTime', "quality: '1080'"]) {
   if (!coreScript.includes(marker)) throw new Error(`État timeline manquant : ${marker}`);
 }
-for (const marker of ['splitAtPlayhead', 'rotateSelected', 'duplicateSelected', 'deleteSelected']) {
-  if (!editorScript.includes(`function ${marker}`)) throw new Error(`Outil timeline manquant : ${marker}`);
+for (const marker of ['splitAtPlayhead', 'rotateSelected', 'duplicateSelected', 'deleteSelected', 'lightweight', 'setTextIfChanged']) {
+  if (!editorScript.includes(marker)) throw new Error(`Outil ou optimisation éditeur manquant : ${marker}`);
 }
-for (const marker of ['mainTimeline', 'timelineClipCard', 'syncTimelineScrollFromState']) {
-  if (!tracksScript.includes(marker)) throw new Error(`Affichage timeline manquant : ${marker}`);
+for (const marker of ['mainTimeline', 'timelineClipCard', 'syncTimelineScrollFromState', 'thumbnailQueue', 'requestIdleCallback']) {
+  if (!tracksScript.includes(marker)) throw new Error(`Affichage ou miniatures optimisées manquants : ${marker}`);
 }
 for (const marker of ['hasNativeCamera', 'startNativeCamera', 'onNativeCameraRecorded', 'appendFullMediaToTimeline']) {
   if (!cameraScript.includes(marker)) throw new Error(`Caméra ou ajout timeline manquant : ${marker}`);
 }
-for (const marker of ['exportTimeline', '1080', 'drawVideoFrame', 'segment.rotation']) {
-  if (!renderScript.includes(marker)) throw new Error(`Export 1080p ou rotation manquant : ${marker}`);
+for (const marker of ['exportTimeline', '1080', 'drawVideoFrame', 'segment.rotation', 'requestVideoFrameCallback', 'warmPreviewMedia']) {
+  if (!renderScript.includes(marker)) throw new Error(`Lecture ou export optimisé manquant : ${marker}`);
 }
 for (const marker of ['previewMediaRatio', 'fitPreviewFrame', 'applyCompactPreviewRotation']) {
   if (!previewScript.includes(marker)) throw new Error(`Gestion du ratio original manquante : ${marker}`);
@@ -72,11 +73,14 @@ for (const marker of ['previewMediaRatio', 'fitPreviewFrame', 'applyCompactPrevi
 for (const marker of ['height:min(40vh,420px)', '.preview-frame']) {
   if (!previewCss.includes(marker)) throw new Error(`Ergonomie compacte manquante : ${marker}`);
 }
-for (const marker of ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom']) {
-  if (!zoomScript.includes(marker)) throw new Error(`Zoom tactile manquant : ${marker}`);
+for (const marker of ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'SCRUB_PREVIEW_DELAY', 'refreshRuler = false']) {
+  if (!zoomScript.includes(marker)) throw new Error(`Zoom tactile optimisé manquant : ${marker}`);
 }
-for (const marker of ['touch-action:pan-x', '.timeline-zoom-bubble', '.timeline-zoom-hint']) {
-  if (!zoomCss.includes(marker)) throw new Error(`Interface du zoom tactile manquante : ${marker}`);
+for (const marker of ['touch-action:pan-x', 'contain:layout paint style', 'timeline-interacting', 'backdrop-filter:none']) {
+  if (!zoomCss.includes(marker)) throw new Error(`Optimisation CSS manquante : ${marker}`);
+}
+if (initScript.includes("els.timelineScroll.addEventListener('scroll'")) {
+  throw new Error('Le double gestionnaire historique de défilement est encore présent dans init.js.');
 }
 
 const nativeFiles = [
@@ -95,8 +99,8 @@ if (!activity.includes('VideoCapture<Recorder>') || !activity.includes('withAudi
 }
 
 const gradle = readFileSync('app/build.gradle', 'utf8');
-if (!gradle.includes("versionName '2.4.0'") || !gradle.includes('versionCode 6') || !gradle.includes("include 'timeline-zoom.css'")) {
-  throw new Error('La version APK 2.4.0 et le zoom tactile ne sont pas configurés.');
+if (!gradle.includes("versionName '2.5.0'") || !gradle.includes('versionCode 7') || !gradle.includes("include 'timeline-zoom.css'")) {
+  throw new Error('La version APK 2.5.0 et les optimisations ne sont pas configurées.');
 }
 
-console.log(`Validation réussie : zoom tactile par pincement, aperçu ratio original, timeline unique, ${scripts.length} scripts et caméra Android native vérifiés.`);
+console.log(`Validation réussie : fluidité optimisée, zoom tactile, aperçu ratio original, timeline unique, ${scripts.length} scripts et caméra Android native vérifiés.`);

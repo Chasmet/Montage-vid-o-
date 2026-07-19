@@ -1,6 +1,37 @@
 .timeline-scroll{
   touch-action:pan-x;
   overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  transform:translateZ(0);
+  contain:layout paint style;
+}
+
+.timeline-content,
+.main-timeline{
+  contain:layout paint style;
+}
+
+.timeline-clip{
+  contain:layout paint style;
+  backface-visibility:hidden;
+  transform:translateZ(0);
+}
+
+.timeline-shell.timeline-interacting .timeline-clip,
+.timeline-shell.timeline-interacting .main-timeline{
+  will-change:width;
+}
+
+.preview-frame,
+.preview-frame>video{
+  backface-visibility:hidden;
+  transform-style:preserve-3d;
+}
+
+.topbar,
+.bottom-dock{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
 }
 
 .timeline-zoom-bubble{
@@ -8,11 +39,11 @@
   z-index:35;
   left:50%;
   top:9px;
-  transform:translate(-50%,-8px) scale(.94);
+  transform:translate3d(-50%,-8px,0) scale(.94);
   padding:7px 12px;
   border:1px solid rgba(255,255,255,.18);
   border-radius:999px;
-  background:rgba(7,10,15,.92);
+  background:rgba(7,10,15,.96);
   color:#fff;
   font-size:.7rem;
   font-weight:850;
@@ -20,12 +51,12 @@
   opacity:0;
   pointer-events:none;
   box-shadow:0 8px 24px rgba(0,0,0,.45);
-  transition:opacity .16s ease,transform .16s ease;
+  transition:opacity .14s ease,transform .14s ease;
 }
 
 .timeline-shell.timeline-zooming .timeline-zoom-bubble{
   opacity:1;
-  transform:translate(-50%,0) scale(1);
+  transform:translate3d(-50%,0,0) scale(1);
 }
 
 .timeline-shell.timeline-zooming .fixed-playhead{

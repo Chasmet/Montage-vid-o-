@@ -1,3 +1,6 @@
+let warmedPreviewUrl = null;
+let warmedPreviewVideo = null;
+
 function stopTimelinePreview(updateButton = false) {
   previewAbortToken += 1;
   isTimelinePreviewing = false;
@@ -5,14 +8,43 @@ function stopTimelinePreview(updateButton = false) {
   if (updateButton) els.playBtn.textContent = '▶';
 }
 
+function scheduleVideoFrame(video, callback) {
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    return video.requestVideoFrameCallback((now) => callback(now));
+  }
+  return requestAnimationFrame(callback);
+}
+
 async function seekVideo(video, time) {
   return new Promise((resolve) => {
     if (Math.abs((video.currentTime || 0) - time) < 0.025) return resolve();
-    const done = () => resolve();
-    video.addEventListener('seeked', done, { once: true });
-    try { video.currentTime = time; } catch { resolve(); }
-    setTimeout(resolve, 1200);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      video.removeEventListener('seeked', finish);
+      resolve();
+    };
+    const timeout = setTimeout(finish, 850);
+    video.addEventListener('seeked', finish, { once: true });
+    try { video.currentTime = time; } catch { finish(); }
   });
+}
+
+function warmPreviewMedia(index) {
+  const next = state.timelineSegments[index + 1];
+  if (!next) return;
+  const media = getMediaByRef(next.type, next.mediaId);
+  if (!media?.url || media.url === warmedPreviewUrl || media.url === els.mainVideo.dataset.mediaUrl) return;
+  warmedPreviewVideo?.removeAttribute('src');
+  warmedPreviewVideo = document.createElement('video');
+  warmedPreviewVideo.preload = 'auto';
+  warmedPreviewVideo.muted = true;
+  warmedPreviewVideo.playsInline = true;
+  warmedPreviewVideo.src = media.url;
+  warmedPreviewVideo.load();
+  warmedPreviewUrl = media.url;
 }
 
 async function previewTimeline(startProjectTime = 0) {
@@ -37,16 +69,26 @@ async function previewTimeline(startProjectTime = 0) {
       continue;
     }
 
+    warmPreviewMedia(index);
     const startOffset = index === startingInfo.index ? startingInfo.local : 0;
     const sourceStart = segment.start + startOffset;
+    const selectionChanged = state.selectedId !== segment.id;
     state.selectedId = segment.id;
-    applyPreviewMedia(media, segment.type, segment, true, sourceStart);
-    renderTimelineSelection();
-    renderInspector();
+    applyPreviewMedia(media, segment.type, segment, true, sourceStart, false);
+    if (selectionChanged) {
+      renderTimelineSelection();
+      renderInspector();
+    }
 
     await new Promise((resolve) => {
       if (els.mainVideo.readyState >= 1) resolve();
-      else els.mainVideo.addEventListener('loadedmetadata', resolve, { once: true });
+      else {
+        const timeout = setTimeout(resolve, 800);
+        els.mainVideo.addEventListener('loadedmetadata', () => {
+          clearTimeout(timeout);
+          resolve();
+        }, { once: true });
+      }
     });
     await seekVideo(els.mainVideo, sourceStart);
     els.mainVideo.volume = segment.muted ? 0 : clamp(segment.volume ?? 1, 0, 1);
@@ -54,8 +96,9 @@ async function previewTimeline(startProjectTime = 0) {
     await els.mainVideo.play().catch(() => {});
 
     await new Promise((resolve) => {
+      let lastLabelUpdate = 0;
       let lastScrollUpdate = 0;
-      const check = (stamp) => {
+      const check = (stamp = performance.now()) => {
         if (!isTimelinePreviewing || token !== previewAbortToken || els.mainVideo.currentTime >= segment.end || els.mainVideo.ended) {
           els.mainVideo.pause();
           resolve();
@@ -63,14 +106,17 @@ async function previewTimeline(startProjectTime = 0) {
         }
         const local = clamp(els.mainVideo.currentTime - segment.start, 0, segmentLength);
         state.timelineTime = clamp(completedBefore + local, 0, timelineDuration());
-        updateProjectLabels();
-        if (stamp - lastScrollUpdate > 70) {
+        if (stamp - lastLabelUpdate >= 32) {
+          updateProjectLabels();
+          lastLabelUpdate = stamp;
+        }
+        if (stamp - lastScrollUpdate >= 48) {
           syncTimelineScrollFromState();
           lastScrollUpdate = stamp;
         }
-        requestAnimationFrame(check);
+        scheduleVideoFrame(els.mainVideo, check);
       };
-      requestAnimationFrame(check);
+      scheduleVideoFrame(els.mainVideo, check);
     });
     completedBefore += segmentLength;
   }
@@ -149,11 +195,11 @@ async function exportTimeline() {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
   const canvasStream = canvas.captureStream(30);
-  const audioContext = new AudioContext();
+  const audioContext = new AudioContext({ latencyHint: 'playback' });
   await audioContext.resume();
   const audioDestination = audioContext.createMediaStreamDestination();
   const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioDestination.stream.getAudioTracks()]);
@@ -167,6 +213,7 @@ async function exportTimeline() {
   const stopped = new Promise((resolve) => { outputRecorder.onstop = resolve; });
   outputRecorder.start(1000);
   let completedDuration = 0;
+  let lastDisplayedProgress = -1;
 
   try {
     for (let index = 0; index < state.timelineSegments.length; index += 1) {
@@ -178,7 +225,6 @@ async function exportTimeline() {
       video.src = media.url;
       video.preload = 'auto';
       video.playsInline = true;
-      video.crossOrigin = 'anonymous';
       await new Promise((resolve, reject) => {
         video.onloadedmetadata = resolve;
         video.onerror = () => reject(new Error(`Clip illisible : ${segment.label}`));
@@ -205,21 +251,27 @@ async function exportTimeline() {
           if (segment.transition === 'fade') alpha = Math.min(1, local / 0.22, (segmentLength - local) / 0.22);
           drawVideoFrame(ctx, video, width, height, segment.fit || 'cover', Math.max(0, alpha), segment.rotation || 0);
           const progress = ((completedDuration + local) / totalDuration) * 100;
-          els.exportProgress.value = progress;
-          els.exportPercent.textContent = `${Math.min(99, Math.round(progress))}%`;
+          const rounded = Math.min(99, Math.round(progress));
+          if (rounded !== lastDisplayedProgress) {
+            lastDisplayedProgress = rounded;
+            els.exportProgress.value = progress;
+            els.exportPercent.textContent = `${rounded}%`;
+          }
           if (video.currentTime >= segment.end || video.ended) {
             video.pause();
             resolve();
-          } else requestAnimationFrame(render);
+          } else scheduleVideoFrame(video, render);
         };
-        render();
+        scheduleVideoFrame(video, render);
       });
       sourceNode?.disconnect();
       gainNode?.disconnect();
+      video.removeAttribute('src');
+      video.load();
       completedDuration += segmentLength;
     }
 
-    await sleep(220);
+    await sleep(180);
     outputRecorder.stop();
     await stopped;
     const output = new Blob(chunks, { type: mime.type || 'video/webm' });
@@ -236,13 +288,13 @@ async function exportTimeline() {
     els.exportPercent.textContent = '100%';
     els.exportStatus.textContent = `Vidéo 1080p prête (${mime.ext.toUpperCase()})`;
     showToast('Export terminé. La vidéo est dans tes téléchargements.');
-    await sleep(1000);
+    await sleep(850);
   } catch (error) {
     console.error(error);
     if (outputRecorder.state !== 'inactive') outputRecorder.stop();
     els.exportStatus.textContent = 'Échec de l’export';
     showToast(error.message || 'L’export a échoué. Ferme les autres applications puis recommence.');
-    await sleep(1300);
+    await sleep(1000);
   } finally {
     canvasStream.getTracks().forEach((track) => track.stop());
     audioDestination.stream.getTracks().forEach((track) => track.stop());

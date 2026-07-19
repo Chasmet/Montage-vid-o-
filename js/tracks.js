@@ -1,7 +1,81 @@
 const thumbnailCache = new Map();
+const thumbnailQueue = [];
+let thumbnailWorkerActive = false;
+let selectedTimelineCard = null;
 
 function thumbnailKey(item) {
   return `${item.type}:${item.mediaId}:${Number(item.start || 0).toFixed(2)}`;
+}
+
+function runThumbnailWorker() {
+  if (thumbnailWorkerActive || !thumbnailQueue.length) return;
+  thumbnailWorkerActive = true;
+  const execute = () => {
+    const job = thumbnailQueue.shift();
+    if (!job || !job.target.isConnected) {
+      thumbnailWorkerActive = false;
+      runThumbnailWorker();
+      return;
+    }
+
+    const { target, item, key } = job;
+    if (thumbnailCache.has(key)) {
+      target.style.backgroundImage = `url(${thumbnailCache.get(key)})`;
+      thumbnailWorkerActive = false;
+      runThumbnailWorker();
+      return;
+    }
+
+    const media = getMediaByRef(item.type, item.mediaId);
+    if (!media?.url) {
+      thumbnailWorkerActive = false;
+      runThumbnailWorker();
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    const cleanup = () => {
+      video.removeAttribute('src');
+      video.load();
+      thumbnailWorkerActive = false;
+      setTimeout(runThumbnailWorker, 0);
+    };
+
+    video.addEventListener('loadedmetadata', () => {
+      const targetTime = clamp(item.start || 0, 0, Math.max(0, (video.duration || 0) - 0.05));
+      try { video.currentTime = targetTime; } catch { cleanup(); }
+    }, { once: true });
+
+    video.addEventListener('seeked', () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 180;
+        canvas.height = 102;
+        const context = canvas.getContext('2d', { alpha: false });
+        const vw = video.videoWidth || 180;
+        const vh = video.videoHeight || 102;
+        const scale = Math.max(canvas.width / vw, canvas.height / vh);
+        const width = vw * scale;
+        const height = vh * scale;
+        context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        const data = canvas.toDataURL('image/jpeg', 0.62);
+        thumbnailCache.set(key, data);
+        if (target.isConnected) target.style.backgroundImage = `url(${data})`;
+      } catch (error) {
+        console.debug('Miniature indisponible', error);
+      } finally {
+        cleanup();
+      }
+    }, { once: true });
+    video.addEventListener('error', cleanup, { once: true });
+    video.src = media.url;
+  };
+
+  if ('requestIdleCallback' in window) requestIdleCallback(execute, { timeout: 220 });
+  else setTimeout(execute, 20);
 }
 
 function attachThumbnail(target, item) {
@@ -10,43 +84,8 @@ function attachThumbnail(target, item) {
     target.style.backgroundImage = `url(${thumbnailCache.get(key)})`;
     return;
   }
-  const media = getMediaByRef(item.type, item.mediaId);
-  if (!media?.url) return;
-  const video = document.createElement('video');
-  video.preload = 'metadata';
-  video.muted = true;
-  video.playsInline = true;
-  video.src = media.url;
-  const cleanup = () => {
-    video.removeAttribute('src');
-    video.load();
-  };
-  video.addEventListener('loadedmetadata', () => {
-    const targetTime = clamp(item.start || 0, 0, Math.max(0, (video.duration || 0) - 0.05));
-    video.currentTime = targetTime;
-  }, { once: true });
-  video.addEventListener('seeked', () => {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 240;
-      canvas.height = 136;
-      const context = canvas.getContext('2d');
-      const vw = video.videoWidth || 240;
-      const vh = video.videoHeight || 136;
-      const scale = Math.max(canvas.width / vw, canvas.height / vh);
-      const width = vw * scale;
-      const height = vh * scale;
-      context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-      const data = canvas.toDataURL('image/jpeg', 0.7);
-      thumbnailCache.set(key, data);
-      target.style.backgroundImage = `url(${data})`;
-    } catch (error) {
-      console.debug('Miniature indisponible', error);
-    } finally {
-      cleanup();
-    }
-  }, { once: true });
-  video.addEventListener('error', cleanup, { once: true });
+  thumbnailQueue.push({ target, item, key });
+  runThumbnailWorker();
 }
 
 function timelineClipCard(item) {
@@ -101,9 +140,8 @@ function timelineClipCard(item) {
 }
 
 function renderRuler(total) {
-  els.timelineRuler.innerHTML = '';
+  const fragment = document.createDocumentFragment();
   const width = Math.max(1, total * TIMELINE_PX_PER_SECOND);
-  els.timelineRuler.style.width = `${width}px`;
   const step = total > 300 ? 30 : total > 120 ? 15 : total > 45 ? 10 : 5;
   const max = Math.ceil(total / step) * step;
   for (let time = 0; time <= max; time += step) {
@@ -111,14 +149,16 @@ function renderRuler(total) {
     tick.className = 'ruler-tick';
     tick.style.left = `${time * TIMELINE_PX_PER_SECOND}px`;
     tick.textContent = formatTime(time);
-    els.timelineRuler.append(tick);
+    fragment.append(tick);
   }
+  els.timelineRuler.replaceChildren(fragment);
+  els.timelineRuler.style.width = `${width}px`;
 }
 
 function renderTimeline() {
   const total = timelineDuration();
   const width = Math.max(1, total * TIMELINE_PX_PER_SECOND);
-  els.mainTimeline.innerHTML = '';
+  const fragment = document.createDocumentFragment();
   els.mainTimeline.style.width = `${width}px`;
   els.mainTimeline.parentElement.style.width = `${Math.max(width, state.timelineSegments.length ? width : 280)}px`;
 
@@ -126,17 +166,25 @@ function renderTimeline() {
     const empty = document.createElement('div');
     empty.className = 'timeline-empty';
     empty.textContent = 'Importe une vidéo ou filme avec la caméra';
-    els.mainTimeline.append(empty);
+    fragment.append(empty);
   } else {
-    state.timelineSegments.forEach((item) => els.mainTimeline.append(timelineClipCard(item)));
+    state.timelineSegments.forEach((item) => fragment.append(timelineClipCard(item)));
   }
+  els.mainTimeline.replaceChildren(fragment);
+  selectedTimelineCard = els.mainTimeline.querySelector('.timeline-clip.selected');
   renderRuler(total);
 }
 
 function renderTimelineSelection() {
-  $$('.timeline-clip').forEach((card) => card.classList.toggle('selected', card.dataset.id === state.selectedId));
+  const next = state.selectedId
+    ? els.mainTimeline.querySelector(`.timeline-clip[data-id="${CSS.escape(state.selectedId)}"]`)
+    : null;
+  if (selectedTimelineCard && selectedTimelineCard !== next) selectedTimelineCard.classList.remove('selected');
+  if (next && next !== selectedTimelineCard) next.classList.add('selected');
+  selectedTimelineCard = next;
   const segment = getSelectedItem();
-  els.selectedClipLabel.textContent = segment?.label || 'Aucun clip';
+  const label = segment?.label || 'Aucun clip';
+  if (els.selectedClipLabel.textContent !== label) els.selectedClipLabel.textContent = label;
 }
 
 function renderInspector() {
@@ -144,19 +192,19 @@ function renderInspector() {
   const controls = [els.volumeRange, els.fitSelect, els.muteToggle, els.splitBtn, els.rotateBtn, els.duplicateBtn, els.deleteClipBtn];
   controls.forEach((control) => { control.disabled = !item; });
   if (!item) {
-    els.inspectorTitle.textContent = 'Aucun clip sélectionné';
+    if (els.inspectorTitle.textContent !== 'Aucun clip sélectionné') els.inspectorTitle.textContent = 'Aucun clip sélectionné';
     return;
   }
-  els.inspectorTitle.textContent = item.label || 'Clip sélectionné';
-  els.volumeRange.value = String(item.volume ?? 1);
-  els.fitSelect.value = item.fit || 'cover';
-  els.muteToggle.checked = Boolean(item.muted);
+  if (els.inspectorTitle.textContent !== item.label) els.inspectorTitle.textContent = item.label || 'Clip sélectionné';
+  if (els.volumeRange.value !== String(item.volume ?? 1)) els.volumeRange.value = String(item.volume ?? 1);
+  if (els.fitSelect.value !== (item.fit || 'cover')) els.fitSelect.value = item.fit || 'cover';
+  if (els.muteToggle.checked !== Boolean(item.muted)) els.muteToggle.checked = Boolean(item.muted);
 }
 
 function renderAll() {
   renderTimeline();
   renderInspector();
-  els.outputAspect.value = state.outputAspect || 'auto';
+  if (els.outputAspect.value !== (state.outputAspect || 'auto')) els.outputAspect.value = state.outputAspect || 'auto';
   els.exportBtn.disabled = !state.timelineSegments.length;
   updateProjectLabels();
   updateUndoRedo();
@@ -165,8 +213,9 @@ function renderAll() {
 function syncTimelineScrollFromState() {
   if (!els.timelineScroll) return;
   timelineScrollSync = true;
-  els.timelineScroll.scrollLeft = state.timelineTime * TIMELINE_PX_PER_SECOND;
-  requestAnimationFrame(() => requestAnimationFrame(() => { timelineScrollSync = false; }));
+  const target = state.timelineTime * TIMELINE_PX_PER_SECOND;
+  if (Math.abs(els.timelineScroll.scrollLeft - target) > 0.5) els.timelineScroll.scrollLeft = target;
+  requestAnimationFrame(() => { timelineScrollSync = false; });
 }
 
 function centerSelectedClip() {
