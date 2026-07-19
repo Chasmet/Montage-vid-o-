@@ -77,3 +77,12 @@ jobs:
             release/RemixStudio.apk.sha256 \
             --title "Remix Studio APK 2.0 – dernière version" \
             --notes "APK Android installable de Remix Studio 2.0 avec interface mobile façon CapCut, pistes Vidéo importée, Caméra et Vidéos finales. Télécharge RemixStudio.apk puis autorise l’installation depuis GitHub ou ton navigateur."
+
+      - name: Enregistrer la réussite de la construction
+        run: |
+          printf '{\n  "status": "success",\n  "version": "2.0.0",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-status.json
+          git commit -m "Confirmer la construction APK [skip ci]" || exit 0
+          git push
