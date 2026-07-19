@@ -9,9 +9,17 @@ async function readVideoMetadata(url) {
       height: video.videoHeight,
       orientation: inferOrientation(video.videoWidth, video.videoHeight)
     });
-    video.onerror = () => reject(new Error('Vidéo illisible sur ce navigateur.'));
+    video.onerror = () => reject(new Error('Vidéo illisible sur cet appareil.'));
     video.src = url;
   });
+}
+
+function nativeCameraAvailable() {
+  try {
+    return Boolean(window.Android?.hasNativeCamera?.());
+  } catch {
+    return false;
+  }
 }
 
 async function importSource(file) {
@@ -43,7 +51,16 @@ async function importSource(file) {
 }
 
 async function enumerateDevices() {
+  if (nativeCameraAvailable()) {
+    els.cameraSelect.innerHTML = '<option value="native">Caméra native Android</option>';
+    els.micSelect.innerHTML = '<option value="native">Micro du téléphone</option>';
+    els.cameraSelect.disabled = true;
+    els.micSelect.disabled = true;
+    return;
+  }
   if (!navigator.mediaDevices?.enumerateDevices) return;
+  els.cameraSelect.disabled = false;
+  els.micSelect.disabled = false;
   const devices = await navigator.mediaDevices.enumerateDevices();
   const cameras = devices.filter((device) => device.kind === 'videoinput');
   const mics = devices.filter((device) => device.kind === 'audioinput');
@@ -68,7 +85,27 @@ function desiredCameraOrientation() {
   return state.source?.orientation || 'vertical';
 }
 
+async function openNativeCamera() {
+  stopFinalPreview();
+  await closeCamera();
+  state.activeView = 'camera';
+  renderAll();
+  const orientation = desiredCameraOrientation();
+  const referenceStart = state.activeMedia?.type === 'source'
+    ? (els.mainVideo.currentTime || 0)
+    : 0;
+  const showReference = Boolean(els.referenceToggle.checked && state.source);
+  showToast('Ouverture de la caméra native du téléphone…');
+  try {
+    window.Android.startNativeCamera(orientation, referenceStart, showReference);
+  } catch (error) {
+    console.error(error);
+    showToast('Impossible d’ouvrir la caméra native Android.');
+  }
+}
+
 async function openCamera() {
+  if (nativeCameraAvailable()) return openNativeCamera();
   try {
     stopFinalPreview();
     await closeCamera();
@@ -144,6 +181,7 @@ async function runCountdown() {
 }
 
 async function startRecording() {
+  if (nativeCameraAvailable()) return openNativeCamera();
   if (!currentStream) return openCamera();
   await runCountdown();
   recorderChunks = [];
@@ -167,31 +205,67 @@ function stopRecording() {
   els.referencePreview.pause();
 }
 
+async function saveCameraBlob(blob, suggestedName = '') {
+  const id = uid('cam');
+  const blobKey = `camera-${id}`;
+  await putBlob(blobKey, blob);
+  const url = URL.createObjectURL(blob);
+  const meta = await readVideoMetadata(url);
+  snapshot();
+  const clip = {
+    id,
+    blobKey,
+    url,
+    name: suggestedName || `Prise caméra ${state.cameraClips.length + 1}`,
+    type: blob.type || 'video/mp4',
+    size: blob.size,
+    ...meta
+  };
+  state.cameraClips.push(clip);
+  state.activeView = 'camera';
+  state.activeMedia = { type: 'camera', mediaId: clip.id };
+  state.selected = { collection: 'cameraClips', id: clip.id };
+  await closeCamera();
+  applyPreviewMedia(clip, 'camera');
+  renderAll();
+  scheduleSave();
+  showToast('Prise native ajoutée à la piste Caméra. Coupe-la puis ajoute-la à la finale.');
+}
+
 async function saveRecording() {
   if (!recorderChunks.length) return;
   try {
     const blob = new Blob(recorderChunks, { type: recorder.mimeType || 'video/webm' });
-    const id = uid('cam');
-    const blobKey = `camera-${id}`;
-    await putBlob(blobKey, blob);
-    const url = URL.createObjectURL(blob);
-    const meta = await readVideoMetadata(url);
-    snapshot();
-    const clip = { id, blobKey, url, name: `Prise caméra ${state.cameraClips.length + 1}`, type: blob.type, size: blob.size, ...meta };
-    state.cameraClips.push(clip);
-    state.activeView = 'camera';
-    state.activeMedia = { type: 'camera', mediaId: clip.id };
-    state.selected = { collection: 'cameraClips', id: clip.id };
-    await closeCamera();
-    applyPreviewMedia(clip, 'camera');
-    renderAll();
-    scheduleSave();
-    showToast('Prise enregistrée. Coupe-la puis ajoute-la à la finale.');
+    await saveCameraBlob(blob);
   } catch (error) {
     console.error(error);
     showToast('La prise n’a pas pu être enregistrée.');
   }
 }
+
+window.onNativeCameraRecorded = async (url, fileName, mimeType = 'video/mp4') => {
+  try {
+    showToast('Import de la prise caméra native…');
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error('La prise native est inaccessible.');
+    const rawBlob = await response.blob();
+    const blob = rawBlob.type ? rawBlob : new Blob([rawBlob], { type: mimeType });
+    const displayName = `Prise caméra ${state.cameraClips.length + 1}`;
+    await saveCameraBlob(blob, displayName);
+    try { window.Android?.deleteNativeRecording?.(fileName); } catch { /* nettoyage facultatif */ }
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || 'Impossible d’ajouter la prise caméra native.');
+  }
+};
+
+window.onNativeCameraError = (message) => {
+  showToast(message || 'La caméra native Android a rencontré un problème.');
+};
+
+window.onNativeCameraCanceled = () => {
+  showToast('Enregistrement caméra annulé.');
+};
 
 function setActiveView(view) {
   state.activeView = view;
