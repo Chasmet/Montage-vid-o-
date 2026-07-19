@@ -1,5 +1,5 @@
-const CACHE = 'remix-studio-v4-final-timeline-unique-1080p';
-const ASSETS = ['./', './index.html', './style.css', './js/core.js', './js/editor.js', './js/tracks.js', './js/camera.js', './js/render.js', './js/init.js', './js/capcut-ui.js', './js/android-bridge.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'remix-studio-v5-redimensionner-capcut';
+const ASSETS = ['./', './index.html', './style.css', './resize.css', './js/core.js', './js/editor.js', './js/tracks.js', './js/camera.js', './js/render.js', './js/resize.js', './js/init.js', './js/capcut-ui.js', './js/android-bridge.js', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', event => {
