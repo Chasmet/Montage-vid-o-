@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Vérifier la fluidité, la timeline et l’aperçu vidéo
+      - name: Auditer la stabilité, les données et la fluidité
         run: node tests/smoke.mjs
 
       - name: Installer Java 17
@@ -52,6 +52,18 @@ jobs:
 
       - name: Construire l’APK avec CameraX
         run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Vérifier le contenu réel de l’APK
+        run: |
+          unzip -l app/build/outputs/apk/debug/app-debug.apk > apk-content.txt
+          grep -q "assets/www/index.html" apk-content.txt
+          grep -q "assets/www/js/final-audit.js" apk-content.txt
+          grep -q "assets/www/js/timeline-zoom.js" apk-content.txt
+          grep -q "assets/www/js/camera.js" apk-content.txt
+          grep -q "assets/www/service-worker.js" apk-content.txt
+
+      - name: Rejouer les tests de non-régression
+        run: node tests/smoke.mjs
 
       - name: Préparer le fichier à télécharger
         run: |
@@ -78,15 +90,15 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.5 – fluidité générale" \
-            --notes "Version 2.5 : défilement et pincement plus fluides, suppression du double traitement de la timeline, aperçu vidéo réactif, miniatures générées en arrière-plan et transitions entre clips préchargées. Toutes les fonctions de la version 2.4 sont conservées."
+            --title "Remix Studio APK 2.6 – version finale auditée" \
+            --notes "Version 2.6 : audit complet, historique et annulation sécurisés, import sans écrasement, auto-réparation des médias, contrôle du stockage, vérification avant export, cache Android fiabilisé et performances 2.5 conservées. Caméra CameraX, timeline unique, zoom tactile et export 1080p inclus."
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.5.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "touch_timeline_zoom": true,\n  "performance_optimized": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status": "success",\n  "version": "2.6.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "touch_timeline_zoom": true,\n  "performance_optimized": true,\n  "data_integrity_audited": true,\n  "project_self_repair": true,\n  "storage_guard": true,\n  "regression_tests_repeated": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK fluidité 2.5 [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK finale 2.6 [skip ci]" || exit 0
           git push
