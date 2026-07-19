@@ -1,0 +1,55 @@
+.timeline-scroll{
+  touch-action:pan-x;
+  overscroll-behavior-x:contain;
+}
+
+.timeline-zoom-bubble{
+  position:absolute;
+  z-index:35;
+  left:50%;
+  top:9px;
+  transform:translate(-50%,-8px) scale(.94);
+  padding:7px 12px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:999px;
+  background:rgba(7,10,15,.92);
+  color:#fff;
+  font-size:.7rem;
+  font-weight:850;
+  letter-spacing:.01em;
+  opacity:0;
+  pointer-events:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);
+  transition:opacity .16s ease,transform .16s ease;
+}
+
+.timeline-shell.timeline-zooming .timeline-zoom-bubble{
+  opacity:1;
+  transform:translate(-50%,0) scale(1);
+}
+
+.timeline-shell.timeline-zooming .fixed-playhead{
+  box-shadow:0 0 0 1px rgba(32,217,238,.55),0 0 14px rgba(32,217,238,.8);
+}
+
+.timeline-zoom-hint{
+  color:#8e97a8;
+  font-size:.66rem;
+  white-space:nowrap;
+  text-align:center;
+}
+
+.timeline-summary{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:8px;
+}
+
+.timeline-summary>span:last-child{
+  text-align:right;
+}
+
+@media (max-width:390px){
+  .timeline-zoom-hint{font-size:.6rem}
+}
