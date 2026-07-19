@@ -109,11 +109,12 @@ function drawVideoFrame(ctx, video, width, height, fit = 'cover', alpha = 1, rot
 }
 
 function outputDimensions() {
-  const selected = getSelectedItem();
-  const selectedMedia = selected ? getMediaByRef(selected.type, selected.mediaId) : null;
-  const automatic = selectedMedia
-    ? effectiveOrientation(selectedMedia, selected?.rotation || 0)
-    : (state.source?.orientation || 'vertical');
+  let automatic = state.source?.orientation || null;
+  if (!automatic) {
+    const first = state.timelineSegments[0];
+    const media = first ? getMediaByRef(first.type, first.mediaId) : null;
+    automatic = media ? effectiveOrientation(media, first.rotation || 0) : 'vertical';
+  }
   const aspect = state.outputAspect === 'auto' ? automatic : state.outputAspect;
   return aspect === 'horizontal' ? { width: 1920, height: 1080 } : { width: 1080, height: 1920 };
 }
