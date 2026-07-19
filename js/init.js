@@ -9,49 +9,51 @@ function bindEvents() {
   els.videoInput.addEventListener('change', (event) => importSource(event.target.files?.[0]));
   els.undoBtn.addEventListener('click', undo);
   els.redoBtn.addEventListener('click', redo);
-  els.viewTabs.forEach((tab) => tab.addEventListener('click', () => setActiveView(tab.dataset.view)));
+  els.playBtn.addEventListener('click', togglePlay);
+  els.jumpStartBtn.addEventListener('click', () => seekTo(0));
+  els.jumpEndBtn.addEventListener('click', () => seekTo(timelineDuration()));
+  els.mainVideo.addEventListener('timeupdate', updateTimeDisplay);
+  els.mainVideo.addEventListener('loadedmetadata', () => applyPreviewRotation(getSelectedItem()));
+
+  els.splitBtn.addEventListener('click', splitAtPlayhead);
+  els.rotateBtn.addEventListener('click', rotateSelected);
+  els.duplicateBtn.addEventListener('click', duplicateSelected);
+  els.deleteClipBtn.addEventListener('click', deleteSelected);
+  els.fitTimelineBtn.addEventListener('click', centerSelectedClip);
+
+  els.volumeRange.addEventListener('change', () => selectedItemMutation((item) => { item.volume = Number(els.volumeRange.value); }));
+  els.fitSelect.addEventListener('change', () => selectedItemMutation((item) => { item.fit = els.fitSelect.value; }));
+  els.muteToggle.addEventListener('change', () => selectedItemMutation((item) => { item.muted = els.muteToggle.checked; }));
+
   els.cameraBtn.addEventListener('click', openCamera);
   els.recordBtn.addEventListener('click', startRecording);
   els.stopRecordBtn.addEventListener('click', stopRecording);
-  els.playBtn.addEventListener('click', togglePlay);
-  els.jumpStartBtn.addEventListener('click', () => seekTo(currentTrim().start));
-  els.jumpEndBtn.addEventListener('click', () => seekTo(currentTrim().end));
-  els.mainVideo.addEventListener('timeupdate', updateTimeDisplay);
-  els.mainVideo.addEventListener('play', () => { els.playBtn.textContent = 'Ⅱ'; });
-  els.mainVideo.addEventListener('pause', () => { els.playBtn.textContent = '▶'; });
-  els.trimStartNumber.addEventListener('change', syncTrimFromNumbers);
-  els.trimEndNumber.addEventListener('change', syncTrimFromNumbers);
-  els.trimStartRange.addEventListener('input', () => syncTrimFromRanges('start'));
-  els.trimEndRange.addEventListener('input', () => syncTrimFromRanges('end'));
-  els.setInBtn.addEventListener('click', () => {
-    els.trimStartNumber.value = (els.mainVideo.currentTime || 0).toFixed(2);
-    syncTrimFromNumbers();
-  });
-  els.setOutBtn.addEventListener('click', () => {
-    els.trimEndNumber.value = (els.mainVideo.currentTime || 0).toFixed(2);
-    syncTrimFromNumbers();
-  });
-  els.markCurrentBtn.addEventListener('click', () => showToast(`Temps actuel : ${formatTime(els.mainVideo.currentTime || 0, true)}`));
-  els.keepSourceBtn.addEventListener('click', keepSourceSegment);
-  els.addSelectedToFinalBtn.addEventListener('click', addActiveSelectionToFinal);
   els.cameraOrientation.addEventListener('change', () => { if (currentStream) openCamera(); });
   els.cameraSelect.addEventListener('change', () => { if (currentStream) openCamera(); });
   els.micSelect.addEventListener('change', () => { if (currentStream) openCamera(); });
   els.referenceToggle.addEventListener('change', () => { if (currentStream) openCamera(); });
   els.noiseToggle.addEventListener('change', () => { if (currentStream) openCamera(); });
-  els.previewFinalBtn.addEventListener('click', previewFinal);
+
+  els.outputAspect.addEventListener('change', () => {
+    snapshot();
+    state.outputAspect = els.outputAspect.value;
+    scheduleSave();
+  });
   els.clearProjectBtn.addEventListener('click', clearProject);
-  els.volumeRange.addEventListener('input', () => selectedItemMutation((item) => { item.volume = Number(els.volumeRange.value); }));
-  els.fitSelect.addEventListener('change', () => selectedItemMutation((item) => { item.fit = els.fitSelect.value; }));
-  els.transitionSelect.addEventListener('change', () => selectedItemMutation((item) => { item.transition = els.transitionSelect.value; }));
-  els.muteToggle.addEventListener('change', () => selectedItemMutation((item) => { item.muted = els.muteToggle.checked; }));
-  els.moveLeftBtn.addEventListener('click', () => moveSelected(-1));
-  els.moveRightBtn.addEventListener('click', () => moveSelected(1));
-  els.duplicateBtn.addEventListener('click', duplicateSelected);
-  els.deleteClipBtn.addEventListener('click', deleteSelected);
-  els.outputAspect.addEventListener('change', () => { state.outputAspect = els.outputAspect.value; scheduleSave(); });
-  els.qualitySelect.addEventListener('change', () => { state.quality = els.qualitySelect.value; scheduleSave(); });
-  els.exportBtn.addEventListener('click', exportFinal);
+  els.exportBtn.addEventListener('click', exportTimeline);
+
+  els.timelineScroll.addEventListener('scroll', () => {
+    if (timelineScrollSync || isTimelinePreviewing) return;
+    const time = clamp(els.timelineScroll.scrollLeft / TIMELINE_PX_PER_SECOND, 0, timelineDuration());
+    state.timelineTime = time;
+    updateProjectLabels();
+    clearTimeout(timelineSeekTimer);
+    timelineSeekTimer = setTimeout(() => {
+      setTimelineTime(time, { preview: true, syncScroll: false, select: true, force: false });
+    }, 55);
+  }, { passive: true });
+
+  window.addEventListener('resize', () => syncTimelineScrollFromState());
   window.addEventListener('beforeunload', () => currentStream?.getTracks().forEach((track) => track.stop()));
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
@@ -61,6 +63,9 @@ function bindEvents() {
     if (event.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement.tagName)) {
       event.preventDefault();
       togglePlay();
+    }
+    if (event.key.toLowerCase() === 's' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+      splitAtPlayhead();
     }
   });
 }
@@ -75,7 +80,11 @@ async function init() {
   await loadSavedProject();
   bindEvents();
   renderAll();
-  loadSelectedMedia();
+  if (state.timelineSegments.length) {
+    setTimelineTime(state.timelineTime || 0, { preview: true, syncScroll: true, select: true, force: true });
+  } else {
+    setTimelineTime(0, { preview: true, syncScroll: true, select: false, force: true });
+  }
   enumerateDevices().catch(() => {});
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('./service-worker.js').catch((error) => console.warn('Service worker', error));
