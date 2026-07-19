@@ -26,22 +26,28 @@ async function importSource(file) {
   if (!file) return;
   if (!file.type.startsWith('video/')) return showToast('Le fichier choisi n’est pas une vidéo.');
   try {
+    stopTimelinePreview();
     const blobKey = 'source-video';
     await putBlob(blobKey, file);
     const url = URL.createObjectURL(file);
     const meta = await readVideoMetadata(url);
     snapshot();
+
     if (state.source?.url) URL.revokeObjectURL(state.source.url);
     state.source = { id: 'source', blobKey, url, name: file.name, size: file.size, type: file.type, ...meta };
-    state.sourceSegments = [];
-    state.finalSegments = state.finalSegments.filter((segment) => segment.type !== 'source');
-    state.activeView = 'source';
+
+    const firstSourceIndex = state.timelineSegments.findIndex((segment) => segment.type === 'source');
+    state.timelineSegments = state.timelineSegments.filter((segment) => segment.type !== 'source');
+    const sourceSegment = buildSegment('source', 'source', 0, meta.duration, file.name || 'Vidéo importée');
+    state.timelineSegments.splice(Math.max(0, firstSourceIndex), 0, sourceSegment);
+    state.selectedId = sourceSegment.id;
+    state.timelineTime = projectTimeForSegment(sourceSegment.id);
     state.activeMedia = { type: 'source', mediaId: 'source' };
-    state.selected = null;
-    applyPreviewMedia(state.source, 'source');
+
     renderAll();
+    setTimelineTime(state.timelineTime, { preview: true, syncScroll: true, select: true, force: true });
     scheduleSave();
-    showToast(`Vidéo importée : ${file.name}`);
+    showToast('Vidéo importée et ajoutée directement à la timeline.');
   } catch (error) {
     console.error(error);
     showToast(error.message || 'Impossible d’importer cette vidéo.');
@@ -68,32 +74,25 @@ async function enumerateDevices() {
   const selectedMic = els.micSelect.value;
   els.cameraSelect.innerHTML = '<option value="">Automatique</option>';
   els.micSelect.innerHTML = '<option value="">Micro du téléphone</option>';
-  cameras.forEach((device, index) => {
-    const option = new Option(device.label || `Caméra ${index + 1}`, device.deviceId);
-    els.cameraSelect.add(option);
-  });
-  mics.forEach((device, index) => {
-    const option = new Option(device.label || `Micro ${index + 1}`, device.deviceId);
-    els.micSelect.add(option);
-  });
-  if ([...els.cameraSelect.options].some((o) => o.value === selectedCamera)) els.cameraSelect.value = selectedCamera;
-  if ([...els.micSelect.options].some((o) => o.value === selectedMic)) els.micSelect.value = selectedMic;
+  cameras.forEach((device, index) => els.cameraSelect.add(new Option(device.label || `Caméra ${index + 1}`, device.deviceId)));
+  mics.forEach((device, index) => els.micSelect.add(new Option(device.label || `Micro ${index + 1}`, device.deviceId)));
+  if ([...els.cameraSelect.options].some((option) => option.value === selectedCamera)) els.cameraSelect.value = selectedCamera;
+  if ([...els.micSelect.options].some((option) => option.value === selectedMic)) els.micSelect.value = selectedMic;
 }
 
 function desiredCameraOrientation() {
   if (els.cameraOrientation.value !== 'auto') return els.cameraOrientation.value;
-  return state.source?.orientation || 'vertical';
+  const selected = getSelectedItem();
+  const media = selected ? getMediaByRef(selected.type, selected.mediaId) : state.source;
+  return selected ? effectiveOrientation(media, selected.rotation) : (state.source?.orientation || 'vertical');
 }
 
 async function openNativeCamera() {
-  stopFinalPreview();
+  stopTimelinePreview();
   await closeCamera();
-  state.activeView = 'camera';
-  renderAll();
   const orientation = desiredCameraOrientation();
-  const referenceStart = state.activeMedia?.type === 'source'
-    ? (els.mainVideo.currentTime || 0)
-    : 0;
+  const selected = getSelectedItem();
+  const referenceStart = selected?.type === 'source' ? (els.mainVideo.currentTime || selected.start || 0) : 0;
   const showReference = Boolean(els.referenceToggle.checked && state.source);
   showToast('Ouverture de la caméra native du téléphone…');
   try {
@@ -107,37 +106,37 @@ async function openNativeCamera() {
 async function openCamera() {
   if (nativeCameraAvailable()) return openNativeCamera();
   try {
-    stopFinalPreview();
+    stopTimelinePreview();
     await closeCamera();
     const orientation = desiredCameraOrientation();
     const isVertical = orientation === 'vertical';
     const noise = els.noiseToggle.checked;
     const videoConstraint = els.cameraSelect.value
-      ? { deviceId: { exact: els.cameraSelect.value }, width: { ideal: isVertical ? 720 : 1280 }, height: { ideal: isVertical ? 1280 : 720 } }
-      : { facingMode: 'user', width: { ideal: isVertical ? 720 : 1280 }, height: { ideal: isVertical ? 1280 : 720 } };
+      ? { deviceId: { exact: els.cameraSelect.value }, width: { ideal: isVertical ? 1080 : 1920 }, height: { ideal: isVertical ? 1920 : 1080 } }
+      : { facingMode: 'user', width: { ideal: isVertical ? 1080 : 1920 }, height: { ideal: isVertical ? 1920 : 1080 } };
     const audioConstraint = els.micSelect.value
-      ? { deviceId: { exact: els.micSelect.value }, echoCancellation: noise, noiseSuppression: noise, autoGainControl: noise, channelCount: 1 }
-      : { echoCancellation: noise, noiseSuppression: noise, autoGainControl: noise, channelCount: 1 };
+      ? { deviceId: { exact: els.micSelect.value }, echoCancellation: noise, noiseSuppression: noise, autoGainControl: noise, channelCount: 1, sampleRate: 48000 }
+      : { echoCancellation: noise, noiseSuppression: noise, autoGainControl: noise, channelCount: 1, sampleRate: 48000 };
     currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: audioConstraint });
     els.cameraPreview.srcObject = currentStream;
     els.cameraPreview.classList.remove('hidden');
     els.mainVideo.classList.add('hidden');
     els.emptyStage.classList.add('hidden');
     setStageOrientation(orientation);
-    state.activeView = 'camera';
     els.previewTitle.textContent = 'Caméra en direct';
     els.recordBtn.disabled = false;
     els.stopRecordBtn.disabled = true;
+
     if (els.referenceToggle.checked && state.source?.url) {
       els.referencePreview.src = state.source.url;
-      els.referencePreview.currentTime = els.mainVideo.currentTime || 0;
+      const selected = getSelectedItem();
+      els.referencePreview.currentTime = selected?.type === 'source' ? (els.mainVideo.currentTime || selected.start || 0) : 0;
       els.referencePreview.classList.remove('hidden');
       els.referencePreview.play().catch(() => {});
     } else {
       els.referencePreview.classList.add('hidden');
     }
     await enumerateDevices();
-    renderAll();
   } catch (error) {
     console.error(error);
     showToast('Autorise la caméra et le micro dans les réglages du navigateur.');
@@ -186,7 +185,7 @@ async function startRecording() {
   await runCountdown();
   recorderChunks = [];
   const mimeType = supportedRecorderMime();
-  recorder = new MediaRecorder(currentStream, mimeType ? { mimeType, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 128_000 } : undefined);
+  recorder = new MediaRecorder(currentStream, mimeType ? { mimeType, videoBitsPerSecond: 10_000_000, audioBitsPerSecond: 160_000 } : undefined);
   recorder.ondataavailable = (event) => { if (event.data.size) recorderChunks.push(event.data); };
   recorder.onstop = saveRecording;
   recorder.start(500);
@@ -222,14 +221,13 @@ async function saveCameraBlob(blob, suggestedName = '') {
     ...meta
   };
   state.cameraClips.push(clip);
-  state.activeView = 'camera';
-  state.activeMedia = { type: 'camera', mediaId: clip.id };
-  state.selected = { collection: 'cameraClips', id: clip.id };
+  const segment = appendFullMediaToTimeline('camera', clip, clip.name);
   await closeCamera();
-  applyPreviewMedia(clip, 'camera');
+  closeAllSheets();
   renderAll();
+  setTimelineTime(projectTimeForSegment(segment.id), { preview: true, syncScroll: true, select: true, force: true });
   scheduleSave();
-  showToast('Prise native ajoutée à la piste Caméra. Coupe-la puis ajoute-la à la finale.');
+  showToast('Prise caméra ajoutée directement à la timeline.');
 }
 
 async function saveRecording() {
@@ -245,13 +243,12 @@ async function saveRecording() {
 
 window.onNativeCameraRecorded = async (url, fileName, mimeType = 'video/mp4') => {
   try {
-    showToast('Import de la prise caméra native…');
+    showToast('Ajout de la prise caméra à la timeline…');
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error('La prise native est inaccessible.');
     const rawBlob = await response.blob();
     const blob = rawBlob.type ? rawBlob : new Blob([rawBlob], { type: mimeType });
-    const displayName = `Prise caméra ${state.cameraClips.length + 1}`;
-    await saveCameraBlob(blob, displayName);
+    await saveCameraBlob(blob, `Prise caméra ${state.cameraClips.length + 1}`);
     try { window.Android?.deleteNativeRecording?.(fileName); } catch { /* nettoyage facultatif */ }
   } catch (error) {
     console.error(error);
@@ -259,103 +256,11 @@ window.onNativeCameraRecorded = async (url, fileName, mimeType = 'video/mp4') =>
   }
 };
 
-window.onNativeCameraError = (message) => {
-  showToast(message || 'La caméra native Android a rencontré un problème.');
-};
-
-window.onNativeCameraCanceled = () => {
-  showToast('Enregistrement caméra annulé.');
-};
-
-function setActiveView(view) {
-  state.activeView = view;
-  if (view === 'source') {
-    closeCamera();
-    state.selected = null;
-    if (state.source) applyPreviewMedia(state.source, 'source');
-    else applyPreviewMedia(null);
-  } else if (view === 'camera') {
-    if (state.cameraClips.length) {
-      const clip = state.cameraClips.at(-1);
-      state.selected = { collection: 'cameraClips', id: clip.id };
-      applyPreviewMedia(clip, 'camera');
-    } else {
-      openCamera();
-    }
-  } else if (view === 'final') {
-    previewFinal();
-  }
-  renderAll();
-  scheduleSave();
-}
-
-function updateTimeDisplay() {
-  els.currentTime.textContent = formatTime(els.mainVideo.currentTime || 0, true);
-  els.durationTime.textContent = formatTime(els.mainVideo.duration || activeDuration(), true);
-}
-
-function togglePlay() {
-  if (!els.mainVideo.src) return;
-  if (els.mainVideo.paused) els.mainVideo.play();
-  else els.mainVideo.pause();
-}
-
-function seekTo(value) {
-  if (!els.mainVideo.src) return;
-  els.mainVideo.currentTime = clamp(value, 0, els.mainVideo.duration || 0);
-}
-
-function selectedItemMutation(mutator) {
-  const item = getSelectedItem();
-  if (!item) return;
-  snapshot();
-  mutator(item);
-  renderAll();
-  scheduleSave();
-}
-
-function moveSelected(direction) {
-  if (state.selected?.collection !== 'finalSegments') return;
-  const index = state.finalSegments.findIndex((item) => item.id === state.selected.id);
-  const next = index + direction;
-  if (index < 0 || next < 0 || next >= state.finalSegments.length) return;
-  snapshot();
-  [state.finalSegments[index], state.finalSegments[next]] = [state.finalSegments[next], state.finalSegments[index]];
-  renderAll();
-  scheduleSave();
-}
-
-async function deleteSelected() {
-  const selected = state.selected;
-  const item = getSelectedItem();
-  if (!selected || !item) return;
-  snapshot();
-  if (selected.collection === 'cameraClips') {
-    state.finalSegments = state.finalSegments.filter((segment) => segment.mediaId !== item.id);
-    if (item.url) URL.revokeObjectURL(item.url);
-    await deleteBlob(item.blobKey);
-  }
-  state[selected.collection] = state[selected.collection].filter((entry) => entry.id !== item.id);
-  state.selected = null;
-  loadSelectedMedia();
-  renderAll();
-  scheduleSave();
-}
-
-function duplicateSelected() {
-  const selected = state.selected;
-  const item = getSelectedItem();
-  if (!selected || !item) return;
-  snapshot();
-  const copy = { ...structuredClone(item), id: uid('copy'), label: `${item.label || item.name} copie` };
-  state[selected.collection].push(copy);
-  state.selected = { collection: selected.collection, id: copy.id };
-  renderAll();
-  scheduleSave();
-}
+window.onNativeCameraError = (message) => showToast(message || 'La caméra native Android a rencontré un problème.');
+window.onNativeCameraCanceled = () => showToast('Enregistrement caméra annulé.');
 
 async function clearProject() {
-  if (!confirm('Supprimer le projet, les prises caméra et le montage final ?')) return;
+  if (!confirm('Supprimer la vidéo importée, les prises caméra et toute la timeline ?')) return;
   await closeCamera();
   state.source?.url && URL.revokeObjectURL(state.source.url);
   state.cameraClips.forEach((clip) => clip.url && URL.revokeObjectURL(clip.url));
@@ -364,7 +269,9 @@ async function clearProject() {
   history = [];
   future = [];
   state = initialState();
-  applyPreviewMedia(null);
+  activePreviewSegmentId = null;
   renderAll();
+  setTimelineTime(0, { preview: true, syncScroll: true, select: false, force: true });
+  closeAllSheets();
   showToast('Projet réinitialisé.');
 }

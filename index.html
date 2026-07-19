@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07090d" />
-  <meta name="description" content="Montage manuel de vidéos réaction sur mobile." />
+  <meta name="description" content="Montage vidéo mobile sur une timeline unique façon CapCut." />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
@@ -19,12 +19,7 @@
         <span id="saveStatus">Sauvegardé</span>
       </div>
       <div class="top-actions">
-        <label class="quality-pill" aria-label="Qualité d’export">
-          <select id="qualitySelect">
-            <option value="720">HD 720p</option>
-            <option value="1080">Full HD 1080p</option>
-          </select>
-        </label>
+        <span class="quality-badge">1080p</span>
         <button id="exportBtn" class="export-btn" type="button">Exporter</button>
       </div>
     </header>
@@ -33,11 +28,7 @@
       <section class="preview-panel">
         <div class="preview-toolbar">
           <strong id="previewTitle">Aucune vidéo</strong>
-          <div class="view-switch" role="group" aria-label="Source de prévisualisation">
-            <button class="view-tab active" data-view="source" type="button">Importée</button>
-            <button class="view-tab" data-view="camera" type="button">Caméra</button>
-            <button class="view-tab" data-view="final" type="button">Finale</button>
-          </div>
+          <span id="projectDurationLabel">00:00</span>
         </div>
 
         <div id="stage" class="stage vertical">
@@ -45,9 +36,9 @@
           <video id="cameraPreview" class="hidden" playsinline muted autoplay></video>
           <video id="referencePreview" class="reference-preview hidden" playsinline muted></video>
           <div id="emptyStage" class="empty-stage">
-            <span>▶</span>
+            <span>＋</span>
             <strong>Importe une vidéo</strong>
-            <small>Puis découpe les passages à conserver</small>
+            <small>Elle apparaîtra directement sur la timeline</small>
           </div>
           <div id="recordBadge" class="record-badge hidden"><span></span> REC</div>
           <div id="countdown" class="countdown hidden">3</div>
@@ -55,138 +46,111 @@
 
         <div class="transport">
           <button id="fullscreenBtn" class="transport-btn" type="button" aria-label="Plein écran">⛶</button>
-          <button id="jumpStartBtn" class="transport-btn" type="button" aria-label="Début du passage">|◀</button>
+          <button id="jumpStartBtn" class="transport-btn" type="button" aria-label="Début du montage">|◀</button>
           <button id="playBtn" class="play-btn" type="button" aria-label="Lecture">▶</button>
-          <button id="jumpEndBtn" class="transport-btn" type="button" aria-label="Fin du passage">▶|</button>
+          <button id="jumpEndBtn" class="transport-btn" type="button" aria-label="Fin du montage">▶|</button>
           <button id="undoBtn" class="transport-btn" type="button" aria-label="Annuler">↶</button>
           <button id="redoBtn" class="transport-btn" type="button" aria-label="Rétablir">↷</button>
         </div>
 
         <div class="time-row">
           <span><strong id="currentTime">00:00.00</strong> / <span id="durationTime">00:00.00</span></span>
-          <span id="selectionDuration">Sélection 0,0 s</span>
+          <span id="selectedClipLabel">Aucun clip</span>
         </div>
       </section>
 
-      <section class="timeline-panel">
-        <div class="timeline-ruler" aria-hidden="true">
-          <span>00:00</span><span>00:10</span><span>00:20</span><span>00:30</span>
+      <section class="timeline-panel" aria-label="Timeline du montage">
+        <div class="timeline-actions">
+          <label class="timeline-action primary" for="videoInput"><span>＋</span> Importer</label>
+          <button id="quickCameraBtn" class="timeline-action" type="button"><span>●</span> Caméra</button>
+          <button id="fitTimelineBtn" class="timeline-action" type="button"><span>↔</span> Recentrer</button>
         </div>
 
-        <div class="timeline-layout">
-          <aside class="quick-tools" aria-label="Actions rapides">
-            <button id="quickMuteBtn" class="quick-tool" type="button"><span>🔊</span><small>Son du clip</small></button>
-            <label class="quick-tool" for="videoInput"><span>＋</span><small>Importer</small></label>
-            <button id="quickCameraBtn" class="quick-tool" type="button"><span>●</span><small>Caméra</small></button>
-          </aside>
-
-          <div class="tracks-board">
-            <div class="playhead" aria-hidden="true"><span></span></div>
-
-            <article class="track source-track">
-              <div class="track-heading">
-                <div><strong>Vidéo importée</strong><small>Découpes de la source</small></div>
-                <button id="sourceLaneAdd" type="button" aria-label="Importer une vidéo">＋</button>
+        <div class="timeline-shell">
+          <div class="fixed-playhead" aria-hidden="true"><span></span></div>
+          <div id="timelineScroll" class="timeline-scroll">
+            <div class="timeline-padding" aria-hidden="true"></div>
+            <div class="timeline-content">
+              <div id="timelineRuler" class="timeline-ruler" aria-hidden="true"></div>
+              <div id="mainTimeline" class="main-timeline">
+                <div class="timeline-empty">Importe une vidéo ou filme avec la caméra</div>
               </div>
-              <div id="sourceTrack" class="clip-lane">
-                <div class="lane-empty">Importe puis garde un premier passage</div>
-              </div>
-            </article>
-
-            <article class="track camera-track">
-              <button id="cameraLaneAdd" class="track-action" type="button"><span>＋</span><strong>Caméra</strong><small>Filmer une nouvelle réaction</small></button>
-              <div id="cameraTrack" class="clip-lane compact-lane">
-                <div class="lane-empty">Aucune prise caméra</div>
-              </div>
-            </article>
-
-            <article class="track final-track">
-              <button id="finalLaneAdd" class="track-action" type="button"><span>＋</span><strong>Vidéos finales</strong><small>Ajouter la sélection courante</small></button>
-              <div id="finalTrack" class="clip-lane sortable compact-lane">
-                <div class="lane-empty">Le montage final est vide</div>
-              </div>
-            </article>
+            </div>
+            <div class="timeline-padding" aria-hidden="true"></div>
           </div>
+        </div>
+
+        <div class="timeline-summary">
+          <span id="timelinePositionLabel">00:00.00</span>
+          <span id="timelineClipCount">0 clip</span>
         </div>
       </section>
     </main>
 
-    <section class="tool-deck" aria-label="Outils de montage">
-      <div id="editPanel" class="tool-panel active">
-        <div class="panel-heading"><div><strong>Découpe manuelle</strong><small>Positionne précisément le début et la fin</small></div><button id="markCurrentBtn" type="button">Temps actuel</button></div>
-        <div class="trim-grid">
-          <label><span>Début</span><input id="trimStartNumber" type="number" min="0" step="0.01" value="0" /></label>
-          <label><span>Fin</span><input id="trimEndNumber" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="label-wide"><span>Nom du passage</span><input id="clipLabel" type="text" maxlength="40" placeholder="Ex. Ma réaction" /></label>
-        </div>
-        <div class="range-stack">
-          <label><span>Poignée début</span><input id="trimStartRange" type="range" min="0" max="1" step="0.01" value="0" /></label>
-          <label><span>Poignée fin</span><input id="trimEndRange" type="range" min="0" max="1" step="0.01" value="1" /></label>
-        </div>
-        <div class="button-row">
-          <button id="setInBtn" type="button">Début = curseur</button>
-          <button id="setOutBtn" type="button">Fin = curseur</button>
-          <button id="keepSourceBtn" class="primary" type="button">✂ Garder sur la piste</button>
-          <button id="addSelectedToFinalBtn" class="success" type="button">＋ Ajouter à la finale</button>
-        </div>
+    <section id="volumeSheet" class="bottom-sheet hidden" aria-label="Réglages du clip">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <div><strong id="inspectorTitle">Clip sélectionné</strong><small>Réglages appliqués uniquement à ce clip</small></div>
+        <button class="sheet-close" data-close-sheet type="button">×</button>
       </div>
-
-      <div id="cameraPanel" class="tool-panel">
-        <div class="panel-heading"><div><strong>Caméra et microphone</strong><small>La vidéo importée peut rester visible comme référence</small></div></div>
-        <div class="settings-grid">
-          <label><span>Orientation</span><select id="cameraOrientation"><option value="auto">Automatique selon la vidéo</option><option value="vertical">Verticale 9:16</option><option value="horizontal">Horizontale 16:9</option></select></label>
-          <label><span>Caméra</span><select id="cameraSelect"><option value="">Automatique</option></select></label>
-          <label><span>Micro</span><select id="micSelect"><option value="">Micro du téléphone</option></select></label>
-          <label><span>Compte à rebours</span><select id="countdownSelect"><option value="0">Aucun</option><option value="3" selected>3 secondes</option><option value="5">5 secondes</option></select></label>
-          <label class="toggle-row"><input id="referenceToggle" type="checkbox" /><span>Afficher la vidéo importée comme référence muette</span></label>
-          <label class="toggle-row"><input id="noiseToggle" type="checkbox" checked /><span>Réduction du bruit, anti-écho et gain automatique</span></label>
-        </div>
-        <div class="button-row camera-actions">
-          <button id="cameraBtn" class="primary" type="button">Ouvrir la caméra</button>
-          <button id="recordBtn" class="record" type="button" disabled>● Enregistrer</button>
-          <button id="stopRecordBtn" type="button" disabled>■ Stop</button>
-        </div>
-      </div>
-
-      <div id="propertiesPanel" class="tool-panel">
-        <div class="panel-heading"><div><strong id="inspectorTitle">Aucun clip</strong><small>Réglages appliqués uniquement au clip sélectionné</small></div></div>
-        <div class="settings-grid">
-          <label><span>Volume</span><input id="volumeRange" type="range" min="0" max="1.5" step="0.05" value="1" disabled /></label>
-          <label><span>Recadrage</span><select id="fitSelect" disabled><option value="cover">Remplir l’écran</option><option value="contain">Afficher en entier</option></select></label>
-          <label><span>Transition</span><select id="transitionSelect" disabled><option value="none">Aucune</option><option value="fade">Fondu court</option></select></label>
-          <label class="toggle-row"><input id="muteToggle" type="checkbox" disabled /><span>Couper le son de ce clip</span></label>
-        </div>
-        <div class="button-row">
-          <button id="moveLeftBtn" type="button" disabled>← Déplacer</button>
-          <button id="moveRightBtn" type="button" disabled>Déplacer →</button>
-          <button id="duplicateBtn" type="button" disabled>Dupliquer</button>
-          <button id="deleteClipBtn" class="danger" type="button" disabled>Supprimer</button>
-        </div>
-      </div>
-
-      <div id="projectPanel" class="tool-panel">
-        <div class="panel-heading"><div><strong>Projet</strong><small>Aperçu, format final et gestion du projet</small></div></div>
-        <div class="settings-grid">
-          <label><span>Format final</span><select id="outputAspect"><option value="auto">Comme la vidéo importée</option><option value="vertical">Vertical 9:16</option><option value="horizontal">Horizontal 16:9</option></select></label>
-        </div>
-        <div class="button-row">
-          <button id="previewFinalBtn" class="primary" type="button">▶ Lire la finale</button>
-          <button id="clearProjectBtn" class="danger" type="button">Réinitialiser le projet</button>
-        </div>
-        <div id="exportProgressWrap" class="progress-wrap hidden">
-          <div><span id="exportStatus">Préparation…</span><span id="exportPercent">0%</span></div>
-          <progress id="exportProgress" max="100" value="0"></progress>
-        </div>
+      <div class="settings-grid">
+        <label><span>Volume</span><input id="volumeRange" type="range" min="0" max="1.5" step="0.05" value="1" /></label>
+        <label><span>Recadrage</span><select id="fitSelect"><option value="cover">Remplir l’écran</option><option value="contain">Afficher en entier</option></select></label>
+        <label class="toggle-row"><input id="muteToggle" type="checkbox" /><span>Couper le son du clip</span></label>
       </div>
     </section>
 
-    <nav class="bottom-dock" aria-label="Navigation des outils">
-      <button class="dock-btn active" data-panel="editPanel" type="button"><span>✂</span><small>Éditer</small></button>
-      <button class="dock-btn" data-panel="cameraPanel" type="button"><span>●</span><small>Caméra</small></button>
-      <label class="dock-btn" for="videoInput"><span>＋</span><small>Importer</small></label>
-      <button class="dock-btn" data-panel="propertiesPanel" type="button"><span>☷</span><small>Clip</small></button>
-      <button class="dock-btn" data-panel="projectPanel" type="button"><span>☆</span><small>Projet</small></button>
-      <button id="dockExportBtn" class="dock-btn" type="button"><span>⇧</span><small>Export</small></button>
+    <section id="cameraSheet" class="bottom-sheet hidden" aria-label="Réglages de la caméra">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <div><strong>Caméra et microphone</strong><small>La prise sera ajoutée automatiquement à la timeline</small></div>
+        <button class="sheet-close" data-close-sheet type="button">×</button>
+      </div>
+      <div class="settings-grid">
+        <label><span>Orientation</span><select id="cameraOrientation"><option value="auto">Automatique selon la vidéo</option><option value="vertical">Verticale 9:16</option><option value="horizontal">Horizontale 16:9</option></select></label>
+        <label><span>Caméra</span><select id="cameraSelect"><option value="">Automatique</option></select></label>
+        <label><span>Micro</span><select id="micSelect"><option value="">Micro du téléphone</option></select></label>
+        <label><span>Compte à rebours</span><select id="countdownSelect"><option value="0">Aucun</option><option value="3" selected>3 secondes</option><option value="5">5 secondes</option></select></label>
+        <label class="toggle-row"><input id="referenceToggle" type="checkbox" /><span>Afficher la vidéo importée comme référence muette</span></label>
+        <label class="toggle-row"><input id="noiseToggle" type="checkbox" checked /><span>Réduction du bruit, anti-écho et gain automatique</span></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="cameraBtn" class="primary" type="button">Ouvrir la caméra</button>
+        <button id="recordBtn" class="record" type="button" disabled>● Enregistrer</button>
+        <button id="stopRecordBtn" type="button" disabled>■ Stop</button>
+      </div>
+    </section>
+
+    <section id="projectSheet" class="bottom-sheet hidden" aria-label="Projet et export">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <div><strong>Projet</strong><small>Format final et gestion du montage</small></div>
+        <button class="sheet-close" data-close-sheet type="button">×</button>
+      </div>
+      <div class="settings-grid">
+        <label><span>Format final</span><select id="outputAspect"><option value="auto">Comme la vidéo importée</option><option value="vertical">Vertical 9:16</option><option value="horizontal">Horizontal 16:9</option></select></label>
+      </div>
+      <div class="sheet-actions">
+        <button id="clearProjectBtn" class="danger" type="button">Réinitialiser le projet</button>
+      </div>
+    </section>
+
+    <section id="exportOverlay" class="export-overlay hidden" aria-live="polite">
+      <div class="export-card">
+        <strong id="exportStatus">Préparation de la vidéo…</strong>
+        <span id="exportPercent">0%</span>
+        <progress id="exportProgress" max="100" value="0"></progress>
+        <small>Ne ferme pas l’application pendant l’export 1080p.</small>
+      </div>
+    </section>
+
+    <nav class="bottom-dock" aria-label="Outils de montage">
+      <button id="splitBtn" class="dock-btn" type="button"><span>][</span><small>Diviser</small></button>
+      <button id="volumeToolBtn" class="dock-btn" type="button"><span>🔊</span><small>Volume</small></button>
+      <button id="rotateBtn" class="dock-btn" type="button"><span>↻</span><small>Tourner</small></button>
+      <button id="duplicateBtn" class="dock-btn" type="button"><span>▣</span><small>Dupliquer</small></button>
+      <button id="deleteClipBtn" class="dock-btn danger" type="button"><span>⌫</span><small>Supprimer</small></button>
+      <button id="projectToolBtn" class="dock-btn" type="button"><span>⚙</span><small>Projet</small></button>
     </nav>
 
     <input id="videoInput" type="file" accept="video/*" hidden />

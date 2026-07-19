@@ -3,13 +3,15 @@ name: Construire APK Android
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: remix-studio-apk
+  group: remix-studio-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,7 +27,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Vérifier l’interface et la caméra native
+      - name: Vérifier la timeline et la caméra native
         run: node tests/smoke.mjs
 
       - name: Installer Java 17
@@ -68,6 +70,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publier la dernière version téléchargeable
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -75,14 +78,15 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.1 – caméra native Android" \
-            --notes "Version 2.1 : l’enregistrement utilise CameraX, la vraie caméra avant ou arrière du téléphone et le microphone Android. La prise revient automatiquement dans la piste Caméra. Télécharge RemixStudio.apk puis remplace l’ancienne version."
+            --title "Remix Studio APK 2.2 – timeline unique 1080p" \
+            --notes "Version 2.2 : une seule timeline façon CapCut, import et caméra sur la même ligne, division à la ligne blanche, rotation, volume, duplication, suppression et export direct Full HD 1080p. Télécharge RemixStudio.apk puis remplace l’ancienne version."
 
       - name: Enregistrer la réussite de la construction
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.1.0",\n  "native_camera": true,\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status": "success",\n  "version": "2.2.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK caméra native [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK timeline unique [skip ci]" || exit 0
           git push

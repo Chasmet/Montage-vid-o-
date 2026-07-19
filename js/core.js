@@ -5,6 +5,7 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const uid = (prefix = 'id') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const TIMELINE_PX_PER_SECOND = 46;
 
 const safeStorage = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },
@@ -17,7 +18,7 @@ const els = {
   undoBtn: $('#undoBtn'),
   redoBtn: $('#redoBtn'),
   previewTitle: $('#previewTitle'),
-  viewTabs: $$('.view-tab'),
+  projectDurationLabel: $('#projectDurationLabel'),
   stage: $('#stage'),
   mainVideo: $('#mainVideo'),
   cameraPreview: $('#cameraPreview'),
@@ -25,49 +26,47 @@ const els = {
   emptyStage: $('#emptyStage'),
   recordBadge: $('#recordBadge'),
   countdown: $('#countdown'),
+  fullscreenBtn: $('#fullscreenBtn'),
   jumpStartBtn: $('#jumpStartBtn'),
   playBtn: $('#playBtn'),
   jumpEndBtn: $('#jumpEndBtn'),
   currentTime: $('#currentTime'),
   durationTime: $('#durationTime'),
+  selectedClipLabel: $('#selectedClipLabel'),
   videoInput: $('#videoInput'),
-  cameraBtn: $('#cameraBtn'),
-  recordBtn: $('#recordBtn'),
-  stopRecordBtn: $('#stopRecordBtn'),
-  markCurrentBtn: $('#markCurrentBtn'),
-  trimStartNumber: $('#trimStartNumber'),
-  trimEndNumber: $('#trimEndNumber'),
-  clipLabel: $('#clipLabel'),
-  trimStartRange: $('#trimStartRange'),
-  trimEndRange: $('#trimEndRange'),
-  setInBtn: $('#setInBtn'),
-  setOutBtn: $('#setOutBtn'),
-  keepSourceBtn: $('#keepSourceBtn'),
-  addSelectedToFinalBtn: $('#addSelectedToFinalBtn'),
+  quickCameraBtn: $('#quickCameraBtn'),
+  fitTimelineBtn: $('#fitTimelineBtn'),
+  timelineScroll: $('#timelineScroll'),
+  timelineRuler: $('#timelineRuler'),
+  mainTimeline: $('#mainTimeline'),
+  timelinePositionLabel: $('#timelinePositionLabel'),
+  timelineClipCount: $('#timelineClipCount'),
+  splitBtn: $('#splitBtn'),
+  volumeToolBtn: $('#volumeToolBtn'),
+  rotateBtn: $('#rotateBtn'),
+  duplicateBtn: $('#duplicateBtn'),
+  deleteClipBtn: $('#deleteClipBtn'),
+  projectToolBtn: $('#projectToolBtn'),
+  inspectorTitle: $('#inspectorTitle'),
+  volumeRange: $('#volumeRange'),
+  fitSelect: $('#fitSelect'),
+  muteToggle: $('#muteToggle'),
+  volumeSheet: $('#volumeSheet'),
+  cameraSheet: $('#cameraSheet'),
+  projectSheet: $('#projectSheet'),
   cameraOrientation: $('#cameraOrientation'),
   cameraSelect: $('#cameraSelect'),
   micSelect: $('#micSelect'),
   countdownSelect: $('#countdownSelect'),
   referenceToggle: $('#referenceToggle'),
   noiseToggle: $('#noiseToggle'),
-  sourceTrack: $('#sourceTrack'),
-  cameraTrack: $('#cameraTrack'),
-  finalTrack: $('#finalTrack'),
-  clearProjectBtn: $('#clearProjectBtn'),
-  previewFinalBtn: $('#previewFinalBtn'),
-  inspectorTitle: $('#inspectorTitle'),
-  volumeRange: $('#volumeRange'),
-  fitSelect: $('#fitSelect'),
-  transitionSelect: $('#transitionSelect'),
-  muteToggle: $('#muteToggle'),
-  moveLeftBtn: $('#moveLeftBtn'),
-  moveRightBtn: $('#moveRightBtn'),
-  duplicateBtn: $('#duplicateBtn'),
-  deleteClipBtn: $('#deleteClipBtn'),
+  cameraBtn: $('#cameraBtn'),
+  recordBtn: $('#recordBtn'),
+  stopRecordBtn: $('#stopRecordBtn'),
   outputAspect: $('#outputAspect'),
-  qualitySelect: $('#qualitySelect'),
+  clearProjectBtn: $('#clearProjectBtn'),
   exportBtn: $('#exportBtn'),
-  exportProgressWrap: $('#exportProgressWrap'),
+  exportOverlay: $('#exportOverlay'),
   exportStatus: $('#exportStatus'),
   exportPercent: $('#exportPercent'),
   exportProgress: $('#exportProgress'),
@@ -75,16 +74,15 @@ const els = {
 };
 
 const initialState = () => ({
-  version: 1,
+  version: 2,
   source: null,
-  sourceSegments: [],
   cameraClips: [],
-  finalSegments: [],
-  selected: null,
-  activeView: 'source',
+  timelineSegments: [],
+  selectedId: null,
   activeMedia: null,
+  timelineTime: 0,
   outputAspect: 'auto',
-  quality: '720'
+  quality: '1080'
 });
 
 let state = initialState();
@@ -93,13 +91,88 @@ let future = [];
 let currentStream = null;
 let recorder = null;
 let recorderChunks = [];
-let isFinalPreviewing = false;
+let isTimelinePreviewing = false;
 let previewAbortToken = 0;
 let toastTimer = null;
 let db = null;
 const memoryBlobs = new Map();
 let autosaveTimer = null;
-let draggedFinalId = null;
+let draggedTimelineId = null;
+let timelineScrollSync = false;
+let timelineSeekTimer = null;
+let activePreviewSegmentId = null;
+
+function normalizeSegment(segment) {
+  if (!segment) return null;
+  const start = Math.max(0, Number(segment.start) || 0);
+  const end = Math.max(start, Number(segment.end) || start);
+  return {
+    id: segment.id || uid('clip'),
+    type: segment.type === 'camera' ? 'camera' : 'source',
+    mediaId: segment.type === 'camera' ? segment.mediaId : 'source',
+    start,
+    end,
+    label: segment.label || (segment.type === 'camera' ? 'Prise caméra' : 'Vidéo importée'),
+    volume: clamp(segment.volume ?? 1, 0, 1.5),
+    muted: Boolean(segment.muted),
+    fit: segment.fit === 'contain' ? 'contain' : 'cover',
+    transition: segment.transition === 'fade' ? 'fade' : 'none',
+    rotation: [0, 90, 180, 270].includes(Number(segment.rotation)) ? Number(segment.rotation) : 0
+  };
+}
+
+function migrateSavedState(saved) {
+  const next = { ...initialState(), ...(saved || {}) };
+  next.version = 2;
+  next.cameraClips = Array.isArray(saved?.cameraClips) ? saved.cameraClips : [];
+
+  let timeline = Array.isArray(saved?.timelineSegments) ? saved.timelineSegments : null;
+  if (!timeline) {
+    const legacyFinal = Array.isArray(saved?.finalSegments) ? saved.finalSegments : [];
+    const legacySource = Array.isArray(saved?.sourceSegments) ? saved.sourceSegments : [];
+    if (legacyFinal.length) {
+      timeline = legacyFinal;
+    } else if (legacySource.length) {
+      timeline = legacySource;
+      const referenced = new Set(timeline.filter((item) => item.type === 'camera').map((item) => item.mediaId));
+      next.cameraClips.forEach((clip) => {
+        if (!referenced.has(clip.id) && Number(clip.duration) > 0) {
+          timeline.push({
+            id: uid('camera'), type: 'camera', mediaId: clip.id, start: 0, end: clip.duration,
+            label: clip.name || 'Prise caméra', volume: 1, muted: false, fit: 'cover', transition: 'none', rotation: 0
+          });
+        }
+      });
+    } else if (saved?.source && Number(saved.source.duration) > 0) {
+      timeline = [{
+        id: uid('source'), type: 'source', mediaId: 'source', start: 0, end: saved.source.duration,
+        label: saved.source.name || 'Vidéo importée', volume: 1, muted: false, fit: 'cover', transition: 'none', rotation: 0
+      }];
+      next.cameraClips.forEach((clip) => {
+        if (Number(clip.duration) > 0) {
+          timeline.push({
+            id: uid('camera'), type: 'camera', mediaId: clip.id, start: 0, end: clip.duration,
+            label: clip.name || 'Prise caméra', volume: 1, muted: false, fit: 'cover', transition: 'none', rotation: 0
+          });
+        }
+      });
+    } else {
+      timeline = [];
+    }
+  }
+
+  next.timelineSegments = timeline.map(normalizeSegment).filter((item) => item && item.end - item.start >= 0.05);
+  next.selectedId = next.timelineSegments.some((item) => item.id === saved?.selectedId)
+    ? saved.selectedId
+    : next.timelineSegments[0]?.id || null;
+  next.timelineTime = clamp(saved?.timelineTime || 0, 0, timelineDuration(next.timelineSegments));
+  next.quality = '1080';
+  delete next.sourceSegments;
+  delete next.finalSegments;
+  delete next.selected;
+  delete next.activeView;
+  return next;
+}
 
 function serializableState() {
   const clean = structuredClone(state);
@@ -116,10 +189,10 @@ function snapshot() {
 }
 
 function restoreSnapshot(raw) {
-  state = JSON.parse(raw);
+  state = migrateSavedState(JSON.parse(raw));
   hydrateMediaUrls().then(() => {
     renderAll();
-    loadSelectedMedia();
+    setTimelineTime(state.timelineTime, { preview: true, syncScroll: true, select: true, force: true });
     scheduleSave();
   });
 }
@@ -163,7 +236,7 @@ function setSaving(isSaving) {
 function scheduleSave() {
   setSaving(true);
   clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(async () => {
+  autosaveTimer = setTimeout(() => {
     safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
     setSaving(false);
   }, 350);
@@ -241,7 +314,7 @@ async function loadSavedProject() {
   const raw = safeStorage.get('remix-studio-state');
   if (!raw) return;
   try {
-    state = { ...initialState(), ...JSON.parse(raw) };
+    state = migrateSavedState(JSON.parse(raw));
     await hydrateMediaUrls();
   } catch (error) {
     console.warn('Projet sauvegardé illisible', error);
@@ -255,9 +328,15 @@ function getMediaByRef(type, mediaId) {
 }
 
 function getSelectedItem() {
-  if (!state.selected) return null;
-  const { collection, id } = state.selected;
-  return state[collection]?.find((item) => item.id === id) || null;
+  return state.timelineSegments.find((item) => item.id === state.selectedId) || null;
+}
+
+function segmentDuration(segment) {
+  return Math.max(0, Number(segment?.end) - Number(segment?.start));
+}
+
+function timelineDuration(segments = state.timelineSegments) {
+  return segments.reduce((sum, segment) => sum + segmentDuration(segment), 0);
 }
 
 function activeDuration() {
