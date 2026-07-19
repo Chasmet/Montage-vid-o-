@@ -29,7 +29,10 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.Map;
@@ -40,10 +43,17 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 2001;
     private static final int MEDIA_PERMISSION_REQUEST = 2002;
     private static final int STORAGE_PERMISSION_REQUEST = 2003;
+    private static final int NATIVE_CAMERA_PERMISSION_REQUEST = 2004;
+    private static final int NATIVE_CAMERA_REQUEST = 2005;
 
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingWebPermission;
+    private Uri lastImportedVideoUri;
+
+    private String pendingNativeOrientation = "vertical";
+    private double pendingReferenceStartSeconds = 0.0;
+    private boolean pendingShowReference = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +74,13 @@ public class MainActivity extends Activity {
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
     }
 
+    private File recordingsDirectory() {
+        File root = getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+        File directory = new File(root != null ? root : getFilesDir(), "RemixStudioNative");
+        if (!directory.exists()) directory.mkdirs();
+        return directory;
+    }
+
     private void configureWebView() {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -76,7 +93,7 @@ public class MainActivity extends Activity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " RemixStudioAndroid/1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " RemixStudioAndroid/2.1");
 
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true);
@@ -84,6 +101,17 @@ public class MainActivity extends Activity {
 
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/recordings/", path -> {
+                    try {
+                        String decoded = Uri.decode(path == null ? "" : path);
+                        String safeName = new File(decoded).getName();
+                        File file = new File(recordingsDirectory(), safeName);
+                        if (!file.isFile()) return null;
+                        return new WebResourceResponse("video/mp4", null, new FileInputStream(file));
+                    } catch (Exception ignored) {
+                        return null;
+                    }
+                })
                 .build();
 
         webView.setWebViewClient(new WebViewClient() {
@@ -96,9 +124,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if ("appassets.androidplatform.net".equals(uri.getHost())) {
-                    return false;
-                }
+                if ("appassets.androidplatform.net".equals(uri.getHost())) return false;
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, uri));
                     return true;
@@ -115,15 +141,14 @@ public class MainActivity extends Activity {
                     ValueCallback<Uri[]> filePathCallback,
                     FileChooserParams fileChooserParams
             ) {
-                if (fileChooserCallback != null) {
-                    fileChooserCallback.onReceiveValue(null);
-                }
+                if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
                 fileChooserCallback = filePathCallback;
 
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("video/*");
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                 startActivityForResult(intent, FILE_CHOOSER_REQUEST);
                 return true;
             }
@@ -135,9 +160,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPermissionRequestCanceled(PermissionRequest request) {
-                if (pendingWebPermission == request) {
-                    pendingWebPermission = null;
-                }
+                if (pendingWebPermission == request) pendingWebPermission = null;
             }
         });
 
@@ -161,19 +184,46 @@ public class MainActivity extends Activity {
         }
 
         pendingWebPermission = request;
-        requestPermissions(
+        requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO}, MEDIA_PERMISSION_REQUEST);
+    }
+
+    private boolean nativeCameraPermissionsGranted() {
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestNativeCamera(String orientation, double referenceStartSeconds, boolean showReference) {
+        pendingNativeOrientation = "horizontal".equals(orientation) ? "horizontal" : "vertical";
+        pendingReferenceStartSeconds = Math.max(0.0, referenceStartSeconds);
+        pendingShowReference = showReference;
+
+        if (nativeCameraPermissionsGranted()) launchNativeCamera();
+        else requestPermissions(
                 new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO},
-                MEDIA_PERMISSION_REQUEST
+                NATIVE_CAMERA_PERMISSION_REQUEST
         );
+    }
+
+    private void launchNativeCamera() {
+        Intent intent = new Intent(this, NativeCameraActivity.class);
+        intent.putExtra(NativeCameraActivity.EXTRA_ORIENTATION, pendingNativeOrientation);
+        intent.putExtra(NativeCameraActivity.EXTRA_REFERENCE_START_SECONDS, pendingReferenceStartSeconds);
+        if (pendingShowReference && lastImportedVideoUri != null) {
+            intent.putExtra(NativeCameraActivity.EXTRA_REFERENCE_URI, lastImportedVideoUri.toString());
+        }
+        startActivityForResult(intent, NATIVE_CAMERA_REQUEST);
+    }
+
+    private void notifyNativeCameraError(String message) {
+        if (webView == null) return;
+        String js = "window.onNativeCameraError && window.onNativeCameraError(" + JSONObject.quote(message) + ");";
+        webView.evaluateJavascript(js, null);
     }
 
     private void requestLegacyStoragePermissionIfNeeded() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
                 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(
-                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    STORAGE_PERMISSION_REQUEST
-            );
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
         }
     }
 
@@ -184,49 +234,73 @@ public class MainActivity extends Activity {
             @NonNull int[] grantResults
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == MEDIA_PERMISSION_REQUEST && pendingWebPermission != null) {
-            boolean granted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    granted = false;
-                    break;
-                }
+        boolean granted = grantResults.length > 0;
+        for (int result : grantResults) {
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                granted = false;
+                break;
             }
+        }
+
+        if (requestCode == MEDIA_PERMISSION_REQUEST && pendingWebPermission != null) {
             if (granted) pendingWebPermission.grant(pendingWebPermission.getResources());
             else pendingWebPermission.deny();
             pendingWebPermission = null;
+        } else if (requestCode == NATIVE_CAMERA_PERMISSION_REQUEST) {
+            if (granted) launchNativeCamera();
+            else notifyNativeCameraError("Autorise la caméra et le microphone dans les réglages Android de Remix Studio.");
         }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != FILE_CHOOSER_REQUEST || fileChooserCallback == null) return;
 
-        Uri[] result = null;
-        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri uri = data.getData();
-            try {
-                getContentResolver().takePersistableUriPermission(
-                        uri,
-                        data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                );
-            } catch (Exception ignored) {
-                // Certains fournisseurs ne proposent pas de permission persistante.
+        if (requestCode == FILE_CHOOSER_REQUEST && fileChooserCallback != null) {
+            Uri[] result = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                lastImportedVideoUri = uri;
+                try {
+                    getContentResolver().takePersistableUriPermission(
+                            uri,
+                            data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    );
+                } catch (Exception ignored) {
+                    // Certains fournisseurs ne proposent pas de permission persistante.
+                }
+                result = new Uri[]{uri};
             }
-            result = new Uri[]{uri};
+            fileChooserCallback.onReceiveValue(result);
+            fileChooserCallback = null;
+            return;
         }
-        fileChooserCallback.onReceiveValue(result);
-        fileChooserCallback = null;
+
+        if (requestCode == NATIVE_CAMERA_REQUEST) {
+            if (resultCode == RESULT_OK && data != null) {
+                String fileName = data.getStringExtra(NativeCameraActivity.RESULT_FILE_NAME);
+                if (fileName != null && !fileName.isBlank()) {
+                    String url = "https://appassets.androidplatform.net/recordings/" + Uri.encode(fileName);
+                    String js = "window.onNativeCameraRecorded && window.onNativeCameraRecorded("
+                            + JSONObject.quote(url) + ","
+                            + JSONObject.quote(fileName) + ","
+                            + JSONObject.quote("video/mp4") + ");";
+                    webView.evaluateJavascript(js, null);
+                } else {
+                    notifyNativeCameraError("La caméra native n’a pas retourné de fichier vidéo.");
+                }
+            } else {
+                String error = data != null ? data.getStringExtra(NativeCameraActivity.RESULT_ERROR) : null;
+                if (error != null && !error.isBlank()) notifyNativeCameraError(error);
+                else webView.evaluateJavascript("window.onNativeCameraCanceled && window.onNativeCameraCanceled();", null);
+            }
+        }
     }
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        if (webView != null && webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
     }
 
     @Override
@@ -248,12 +322,31 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean hasNativeCamera() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void startNativeCamera(String orientation, double referenceStartSeconds, boolean showReference) {
+            activity.runOnUiThread(() -> activity.requestNativeCamera(orientation, referenceStartSeconds, showReference));
+        }
+
+        @JavascriptInterface
+        public boolean deleteNativeRecording(String fileName) {
+            try {
+                File file = new File(activity.recordingsDirectory(), new File(fileName).getName());
+                return !file.exists() || file.delete();
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
         public String beginDownload(String requestedName, String requestedMime) {
             try {
                 String fileName = sanitizeFileName(requestedName);
                 String mimeType = requestedMime == null || requestedMime.isBlank()
-                        ? "application/octet-stream"
-                        : requestedMime;
+                        ? "application/octet-stream" : requestedMime;
                 String id = UUID.randomUUID().toString();
                 ContentResolver resolver = activity.getContentResolver();
 
@@ -323,14 +416,8 @@ public class MainActivity extends Activity {
         public void cancelDownload(String id) {
             DownloadSession session = sessions.remove(id);
             if (session == null) return;
-            try {
-                session.stream.close();
-            } catch (Exception ignored) {
-            }
-            try {
-                activity.getContentResolver().delete(session.uri, null, null);
-            } catch (Exception ignored) {
-            }
+            try { session.stream.close(); } catch (Exception ignored) { }
+            try { activity.getContentResolver().delete(session.uri, null, null); } catch (Exception ignored) { }
         }
 
         @JavascriptInterface
@@ -350,7 +437,6 @@ public class MainActivity extends Activity {
         private static File uniqueFile(File directory, String fileName) {
             File candidate = new File(directory, fileName);
             if (!candidate.exists()) return candidate;
-
             int dot = fileName.lastIndexOf('.');
             String base = dot > 0 ? fileName.substring(0, dot) : fileName;
             String extension = dot > 0 ? fileName.substring(dot) : "";
