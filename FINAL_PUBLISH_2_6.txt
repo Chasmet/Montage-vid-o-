@@ -1,0 +1,3 @@
+Remix Studio 2.6.0
+Audit complet validé.
+Publication finale déclenchée après fusion sur main.
