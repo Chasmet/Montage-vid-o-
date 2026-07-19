@@ -20,6 +20,14 @@ jobs:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Vérifier l’interface et les scripts
+        run: node tests/smoke.mjs
+
       - name: Installer Java 17
         uses: actions/setup-java@v4
         with:
@@ -67,5 +75,5 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK – dernière version" \
-            --notes "APK Android installable construit automatiquement depuis la branche main. Télécharge RemixStudio.apk, autorise l’installation depuis ton navigateur ou GitHub, puis installe l’application."
+            --title "Remix Studio APK 2.0 – dernière version" \
+            --notes "APK Android installable de Remix Studio 2.0 avec interface mobile façon CapCut, pistes Vidéo importée, Caméra et Vidéos finales. Télécharge RemixStudio.apk puis autorise l’installation depuis GitHub ou ton navigateur."
