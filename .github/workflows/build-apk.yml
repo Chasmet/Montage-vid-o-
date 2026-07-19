@@ -1,0 +1,71 @@
+name: Construire APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remix-studio-apk
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Installer Android 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Installer Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Vérifier le projet Gradle
+        run: gradle projects --no-daemon
+
+      - name: Construire l’APK installable
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Préparer le fichier à télécharger
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/debug/app-debug.apk release/RemixStudio.apk
+          sha256sum release/RemixStudio.apk > release/RemixStudio.apk.sha256
+
+      - name: Conserver l’APK dans les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remix-Studio-APK
+          path: |
+            release/RemixStudio.apk
+            release/RemixStudio.apk.sha256
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publier la dernière version téléchargeable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-apk --yes --cleanup-tag || true
+          gh release create latest-apk \
+            release/RemixStudio.apk \
+            release/RemixStudio.apk.sha256 \
+            --title "Remix Studio APK – dernière version" \
+            --notes "APK Android installable construit automatiquement depuis la branche main. Télécharge RemixStudio.apk, autorise l’installation depuis ton navigateur ou GitHub, puis installe l’application."
