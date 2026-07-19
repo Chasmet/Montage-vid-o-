@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Vérifier l’interface et les scripts
+      - name: Vérifier l’interface et la caméra native
         run: node tests/smoke.mjs
 
       - name: Installer Java 17
@@ -48,7 +48,7 @@ jobs:
       - name: Vérifier le projet Gradle
         run: gradle projects --no-daemon
 
-      - name: Construire l’APK installable
+      - name: Construire l’APK avec CameraX
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Préparer le fichier à télécharger
@@ -75,14 +75,14 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.0 – dernière version" \
-            --notes "APK Android installable de Remix Studio 2.0 avec interface mobile façon CapCut, pistes Vidéo importée, Caméra et Vidéos finales. Télécharge RemixStudio.apk puis autorise l’installation depuis GitHub ou ton navigateur."
+            --title "Remix Studio APK 2.1 – caméra native Android" \
+            --notes "Version 2.1 : l’enregistrement utilise CameraX, la vraie caméra avant ou arrière du téléphone et le microphone Android. La prise revient automatiquement dans la piste Caméra. Télécharge RemixStudio.apk puis remplace l’ancienne version."
 
       - name: Enregistrer la réussite de la construction
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.0.0",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status": "success",\n  "version": "2.1.0",\n  "native_camera": true,\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK caméra native [skip ci]" || exit 0
           git push
