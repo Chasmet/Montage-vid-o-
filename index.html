@@ -31,17 +31,19 @@
           <span id="projectDurationLabel">00:00</span>
         </div>
 
-        <div id="stage" class="stage vertical">
-          <video id="mainVideo" playsinline preload="metadata"></video>
-          <video id="cameraPreview" class="hidden" playsinline muted autoplay></video>
-          <video id="referencePreview" class="reference-preview hidden" playsinline muted></video>
-          <div id="emptyStage" class="empty-stage">
-            <span>＋</span>
-            <strong>Importe une vidéo</strong>
-            <small>Elle apparaîtra directement sur la timeline</small>
+        <div id="stage" class="stage">
+          <div id="previewFrame" class="preview-frame">
+            <video id="mainVideo" playsinline preload="metadata"></video>
+            <video id="cameraPreview" class="hidden" playsinline muted autoplay></video>
+            <video id="referencePreview" class="reference-preview hidden" playsinline muted></video>
+            <div id="emptyStage" class="empty-stage">
+              <span>＋</span>
+              <strong>Importe une vidéo</strong>
+              <small>Elle apparaîtra directement sur la timeline</small>
+            </div>
+            <div id="recordBadge" class="record-badge hidden"><span></span> REC</div>
+            <div id="countdown" class="countdown hidden">3</div>
           </div>
-          <div id="recordBadge" class="record-badge hidden"><span></span> REC</div>
-          <div id="countdown" class="countdown hidden">3</div>
         </div>
 
         <div class="transport">
