@@ -28,9 +28,31 @@ jobs:
           node-version: '22'
 
       - name: Auditer la stabilité, les données et la fluidité
+        id: audit_initial
+        continue-on-error: true
         run: |
-          node tests/smoke.mjs
-          node tests/audit-model.mjs
+          set +e
+          node tests/smoke.mjs > audit-output.txt 2>&1
+          SMOKE_STATUS=$?
+          node tests/audit-model.mjs >> audit-output.txt 2>&1
+          MODEL_STATUS=$?
+          printf '\nsmoke_status=%s\nmodel_status=%s\n' "$SMOKE_STATUS" "$MODEL_STATUS" >> audit-output.txt
+          if [ "$SMOKE_STATUS" -ne 0 ] || [ "$MODEL_STATUS" -ne 0 ]; then exit 1; fi
+
+      - name: Conserver le rapport d’audit initial
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rapport-Audit-Initial
+          path: audit-output.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Valider le premier audit
+        if: always()
+        run: |
+          cat audit-output.txt
+          test "${{ steps.audit_initial.outcome }}" = "success"
 
       - name: Installer Java 17
         uses: actions/setup-java@v4
