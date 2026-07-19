@@ -1,4 +1,4 @@
-const CACHE = 'remix-studio-v2';
+const CACHE = 'remix-studio-v3-native-camera';
 const ASSETS = ['./', './index.html', './style.css', './js/core.js', './js/editor.js', './js/tracks.js', './js/camera.js', './js/render.js', './js/init.js', './js/capcut-ui.js', './js/android-bridge.js', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
