@@ -1,4 +1,4 @@
-# Remix Studio 2.2
+# Remix Studio 2.4
 
 [![Construire APK Android](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml/badge.svg)](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml)
 
@@ -15,17 +15,23 @@ L’APK est reconstruit automatiquement après chaque modification de la branche
 
 1. Appuyer sur **Importer** et sélectionner une vidéo.
 2. La vidéo complète apparaît directement sur la timeline.
-3. Faire glisser la timeline sous la ligne blanche pour choisir l’endroit précis.
-4. Appuyer sur **Diviser** pour fractionner le clip.
-5. Sélectionner un morceau puis utiliser **Volume**, **Tourner**, **Dupliquer** ou **Supprimer**.
-6. Appuyer sur **Caméra** pour filmer une prise avec CameraX et le micro du téléphone.
-7. La prise caméra est ajoutée automatiquement sur la même timeline.
-8. Appuyer sur **Exporter** pour créer directement le montage final en 1080p.
+3. Pincer la timeline avec deux doigts pour la réduire ou l’agrandir.
+4. Faire glisser la timeline sous la ligne blanche pour choisir l’endroit précis.
+5. Appuyer sur **Diviser** pour fractionner le clip.
+6. Sélectionner un morceau puis utiliser **Volume**, **Tourner**, **Dupliquer** ou **Supprimer**.
+7. Appuyer sur **Caméra** pour filmer une prise avec CameraX et le micro du téléphone.
+8. La prise caméra est ajoutée automatiquement sur la même timeline.
+9. Appuyer sur **Exporter** pour créer directement le montage final en 1080p.
 
 ## Fonctions incluses
 
 - Une seule timeline : vidéo importée et prises caméra sur la même ligne.
-- Aperçu vidéo permanent pendant le montage.
+- Zoom tactile par pincement à deux doigts, comme dans CapCut.
+- Réduction suffisante pour afficher rapidement une vidéo longue de plusieurs minutes.
+- Agrandissement jusqu’au niveau nécessaire pour une découpe précise.
+- Conservation de la position de la ligne blanche pendant le zoom.
+- Mémorisation automatique du niveau de zoom.
+- Aperçu compact conservant le ratio original de chaque vidéo.
 - Ligne blanche centrale façon CapCut pour choisir le temps exact.
 - Division du clip au niveau de la ligne blanche.
 - Rotation par pas de 90°.
@@ -48,4 +54,4 @@ Les anciens projets utilisant les pistes **Vidéo importée**, **Caméra** et **
 
 ## Construction Android
 
-Le workflow `.github/workflows/build-apk.yml` vérifie l’interface et le JavaScript, construit l’APK puis publie `RemixStudio.apk` dans la version `latest-apk`.
+Le workflow `.github/workflows/build-apk.yml` vérifie l’interface, le pincement tactile et le JavaScript, construit l’APK puis publie `RemixStudio.apk` dans la version `latest-apk`.
