@@ -55,7 +55,7 @@ const markerGroups = [
   [files.render, ['exportTimeline', '1080', 'drawVideoFrame', 'segment.rotation', 'requestVideoFrameCallback', 'warmPreviewMedia'], 'Lecture/export'],
   [files.preview, ['previewMediaRatio', 'fitPreviewFrame', 'applyCompactPreviewRotation'], 'Ratio original'],
   [previewCss, ['height:min(40vh,420px)', '.preview-frame'], 'Ergonomie compacte'],
-  [files.zoom, ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom', 'applyScaleOnly'], 'Zoom tactile'],
+  [files.zoom, ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom'], 'Zoom tactile'],
   [zoomCss, ['touch-action:pan-x', '.timeline-zoom-bubble', '.timeline-zoom-hint', 'contain:layout paint'], 'Isolation graphique'],
   [files.init, ['loadFinalAudit', 'js/final-audit.js', 'script.dataset.remixFinalAudit'], 'Chargement audit final']
 ];
