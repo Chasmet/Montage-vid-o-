@@ -1,12 +1,16 @@
 {
   "status": "success",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "native_camera": true,
   "single_timeline": true,
   "original_ratio_preview": true,
   "touch_timeline_zoom": true,
   "performance_optimized": true,
+  "data_integrity_audited": true,
+  "project_self_repair": true,
+  "storage_guard": true,
+  "regression_tests_repeated": true,
   "export": "1080p",
-  "commit": "84019507dc26a051b38ada231eb655e57da4f4e4",
-  "built_at": "2026-07-19T22:00:14Z"
+  "commit": "ea0b6d5eafce78d57c2126d1253ddd108e9a1a09",
+  "built_at": "2026-07-19T22:39:57Z"
 }
