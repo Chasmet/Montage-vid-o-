@@ -31,7 +31,8 @@ for (const asset of ['preview.css', 'timeline-zoom.css', 'js/preview-ratio.js', 
 const scripts = [
   'js/core.js', 'js/editor.js', 'js/tracks.js', 'js/camera.js', 'js/render.js',
   'js/preview-ratio.js', 'js/timeline-zoom.js', 'js/init.js', 'js/final-audit.js',
-  'js/insertion-cursor.js', 'js/export-mode2.js', 'js/android-bridge.js', 'js/capcut-ui.js'
+  'js/insertion-cursor.js', 'js/export-mode2.js', 'js/export-watchdog.js',
+  'js/android-bridge.js', 'js/capcut-ui.js'
 ];
 for (const file of scripts) {
   if (!existsSync(file)) throw new Error(`Script manquant : ${file}`);
@@ -50,7 +51,8 @@ const files = {
   init: readFileSync('js/init.js', 'utf8'),
   audit: readFileSync('js/final-audit.js', 'utf8'),
   insertion: readFileSync('js/insertion-cursor.js', 'utf8'),
-  podcast: readFileSync('js/export-mode2.js', 'utf8')
+  podcast: readFileSync('js/export-mode2.js', 'utf8'),
+  watchdog: readFileSync('js/export-watchdog.js', 'utf8')
 };
 const previewCss = readFileSync('preview.css', 'utf8');
 const zoomCss = readFileSync('timeline-zoom.css', 'utf8');
@@ -67,9 +69,10 @@ const markerGroups = [
   [previewCss, ['height:min(40vh,420px)', '.preview-frame'], 'Ergonomie compacte'],
   [files.zoom, ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom'], 'Zoom tactile'],
   [zoomCss, ['touch-action:pan-x', '.timeline-zoom-bubble', '.timeline-zoom-hint', 'contain:layout paint'], 'Isolation graphique'],
-  [files.init, ['loadFinalAudit', 'loadCursorInsertion', 'loadPodcastExportMode', 'js/export-mode2.js', 'script.dataset.remixPodcastMode'], 'Chargement des protections'],
+  [files.init, ['loadFinalAudit', 'loadCursorInsertion', 'loadPodcastExportMode', 'loadExportWatchdog', 'js/export-watchdog.js', 'script.dataset.remixExportWatchdog'], 'Chargement des protections'],
   [files.insertion, ['insertionIndexAtCursor', 'insertFullMediaAt', 'pendingCameraInsertionIndex', 'saveCameraBlob = async function', 'Nouvelle vidéo insérée juste à côté de la coupe'], 'Insertion au curseur'],
-  [files.podcast, ['showExportModeChooser', 'Mode 1 — Montage normal', 'Mode 2 — Deux vidéos côte à côte', 'analyzeReaction', 'calmWindows', "mode: 'still'", 'runPodcastPhase', 'exportPodcastInterview', 'exportTimeline = showExportModeChooser'], 'Mode 2 interview naturelle']
+  [files.podcast, ['showExportModeChooser', 'Mode 1 — Montage normal', 'Mode 2 — Deux vidéos côte à côte', 'analyzeReaction', 'calmWindows', "mode: 'still'", 'runPodcastPhase', 'exportPodcastInterview', 'exportTimeline = showExportModeChooser'], 'Mode 2 interview naturelle'],
+  [files.watchdog, ["const VERSION = '2.8.1'", 'FALLBACK_CALLBACK_MS', 'STALL_DETECTION_MS', 'keepPlaybackMoving', 'scheduleVideoFrameWithWatchdog', "navigator.wakeLock.request('screen')"], 'Protection anti-blocage export']
 ];
 for (const [content, markers, label] of markerGroups) {
   for (const marker of markers) if (!content.includes(marker)) throw new Error(`${label} incomplet : ${marker}`);
@@ -89,7 +92,7 @@ for (const marker of auditMarkers) {
 if (files.audit.includes("const blobKey = 'source-video'")) {
   throw new Error('Une clé fixe casserait encore l’annulation après un nouvel import.');
 }
-for (const marker of ['remix-studio-v10-mode2-interview-2-8', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js']) {
+for (const marker of ['remix-studio-v11-export-watchdog-2-8-1', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache final incomplet : ${marker}`);
 }
 
@@ -106,15 +109,16 @@ const gradle = readFileSync(nativeFiles[3], 'utf8');
 if (!cameraActivity.includes('VideoCapture<Recorder>') || !cameraActivity.includes('withAudioEnabled')) throw new Error('CameraX avec audio est incomplète.');
 if (!mainActivity.includes('WebViewAssetLoader') || !mainActivity.includes('beginDownload') || !mainActivity.includes('finishDownload')) throw new Error('Pont Android incomplet.');
 if (!manifest.includes('android:hardwareAccelerated="true"') || !manifest.includes('android.permission.RECORD_AUDIO')) throw new Error('Accélération matérielle ou micro manquant.');
-if (!gradle.includes("versionName '2.8.0'") || !gradle.includes('versionCode 10') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.8.0 incomplète.');
+if (!gradle.includes("versionName '2.8.1'") || !gradle.includes('versionCode 11') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.8.1 incomplète.');
 
 const workflowMarkers = [
   'Auditer la stabilité, les données et la fluidité', 'Tester l’insertion à la ligne blanche',
-  'Tester le Mode 2 interview naturelle', 'assets/www/js/export-mode2.js',
-  'Rejouer les tests de non-régression', 'interview naturelle', 'podcast_mode',
+  'Tester le Mode 2 interview naturelle', 'Tester la protection anti-blocage de l’export',
+  'assets/www/js/export-mode2.js', 'assets/www/js/export-watchdog.js',
+  'Rejouer les tests de non-régression', 'interview naturelle', 'export_watchdog',
   'reaction_trompe_oeil', 'cursor_insertion', 'data_integrity_audited',
   'project_self_repair', 'storage_guard', 'regression_tests_repeated'
 ];
 for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Validation CI finale manquante : ${marker}`);
 
-console.log(`Audit réussi : Mode 2 interview naturelle, insertion au curseur, intégrité, stockage, fluidité, export 1080p, ${scripts.length} scripts et CameraX vérifiés.`);
+console.log(`Audit réussi : export anti-blocage 2.8.1, Mode 2 interview naturelle, insertion au curseur, intégrité, fluidité, export 1080p, ${scripts.length} scripts et CameraX vérifiés.`);
