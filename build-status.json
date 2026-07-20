@@ -1,6 +1,6 @@
 {
   "status":"success",
-  "version":"2.8.1",
+  "version":"2.9.0",
   "native_camera":true,
   "single_timeline":true,
   "original_ratio_preview":true,
@@ -14,10 +14,12 @@
   "reaction_trompe_oeil":true,
   "calm_reaction_analysis":true,
   "alternating_active_audio":true,
+  "mode2_synchronized":true,
+  "mode2_setup_time_removed":true,
   "export_watchdog":true,
   "screen_wake_lock":true,
   "regression_tests_repeated":true,
   "export":"1080p",
-  "commit":"9632fa3b35f3aefd3bfa88dee5caec3665fe914c",
-  "built_at":"2026-07-20T15:50:02Z"
+  "commit":"2fdf83463cc0612536142535c66c60ff0072dd8d",
+  "built_at":"2026-07-20T16:32:06Z"
 }
