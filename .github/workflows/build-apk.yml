@@ -26,6 +26,7 @@ jobs:
         with:
           node-version: '22'
 
+      # Auditer la stabilité, les données et la fluidité
       - name: Vérifier l’interface et les scripts
         run: node tests/smoke.mjs
 
