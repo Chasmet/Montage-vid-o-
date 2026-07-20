@@ -97,8 +97,21 @@ function loadFinalAudit() {
   });
 }
 
+function loadCursorInsertion() {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-remix-cursor-insertion]')) return resolve();
+    const script = document.createElement('script');
+    script.src = 'js/insertion-cursor.js';
+    script.dataset.remixCursorInsertion = '2.7.0';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('La logique d’insertion à la ligne blanche n’a pas pu être chargée.'));
+    document.body.appendChild(script);
+  });
+}
+
 init()
   .then(loadFinalAudit)
+  .then(loadCursorInsertion)
   .catch((error) => {
     console.error(error);
     showToast('L’application n’a pas pu démarrer correctement.');
