@@ -4,7 +4,6 @@
   const VERSION = '2.7.0';
   const EDGE_TOLERANCE = 0.08;
   let pendingCameraInsertionIndex = null;
-  let lastInsertedSegmentId = null;
 
   function insertionIndexAtCursor() {
     if (!state.timelineSegments.length) return 0;
@@ -13,7 +12,7 @@
 
     const duration = segmentDuration(info.segment);
     if (info.local <= EDGE_TOLERANCE) {
-      return info.segment.id === lastInsertedSegmentId ? info.index + 1 : info.index;
+      return info.segment.id === state.cursorInsertionAfterId ? info.index + 1 : info.index;
     }
     if (duration - info.local <= EDGE_TOLERANCE) return info.index + 1;
     return info.index + 1;
@@ -33,7 +32,7 @@
     state.selectedId = segment.id;
     state.timelineTime = projectTimeForSegment(segment.id);
     state.activeMedia = { type, mediaId: type === 'source' ? 'source' : media.id };
-    lastInsertedSegmentId = segment.id;
+    state.cursorInsertionAfterId = segment.id;
     return segment;
   }
 
