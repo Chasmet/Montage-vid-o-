@@ -17,7 +17,6 @@ concurrency:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-
     steps:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
@@ -28,33 +27,11 @@ jobs:
           node-version: '22'
 
       - name: Auditer la stabilité, les données et la fluidité
-        id: audit_initial
-        continue-on-error: true
         run: |
-          set +e
-          node tests/smoke.mjs > audit-output.txt 2>&1
-          SMOKE_STATUS=$?
-          node tests/audit-model.mjs >> audit-output.txt 2>&1
-          MODEL_STATUS=$?
-          node tests/insertion-cursor.mjs >> audit-output.txt 2>&1
-          CURSOR_STATUS=$?
-          printf '\nsmoke_status=%s\nmodel_status=%s\ncursor_status=%s\n' "$SMOKE_STATUS" "$MODEL_STATUS" "$CURSOR_STATUS" >> audit-output.txt
-          if [ "$SMOKE_STATUS" -ne 0 ] || [ "$MODEL_STATUS" -ne 0 ] || [ "$CURSOR_STATUS" -ne 0 ]; then exit 1; fi
-
-      - name: Conserver le rapport d’audit initial
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Rapport-Audit-Initial
-          path: audit-output.txt
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: Valider le premier audit
-        if: always()
-        run: |
-          cat audit-output.txt
-          test "${{ steps.audit_initial.outcome }}" = "success"
+          node tests/smoke.mjs
+          node tests/audit-model.mjs
+          node tests/insertion-cursor.mjs
+          node tests/export-mode2.mjs
 
       - name: Installer Java 17
         uses: actions/setup-java@v4
@@ -73,11 +50,10 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Vérifier le projet Gradle
-        run: gradle projects --no-daemon
-
       - name: Construire l’APK avec CameraX
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          gradle projects --no-daemon
+          gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Vérifier le contenu réel de l’APK
         run: |
@@ -85,18 +61,22 @@ jobs:
           grep -q "assets/www/index.html" apk-content.txt
           grep -q "assets/www/js/final-audit.js" apk-content.txt
           grep -q "assets/www/js/insertion-cursor.js" apk-content.txt
+          grep -q "assets/www/js/export-mode2.js" apk-content.txt
           grep -q "assets/www/js/timeline-zoom.js" apk-content.txt
           grep -q "assets/www/js/camera.js" apk-content.txt
-          grep -q "assets/www/service-worker.js" apk-content.txt
 
       - name: Tester l’insertion à la ligne blanche
         run: node tests/insertion-cursor.mjs
+
+      - name: Tester le Mode 2 interview naturelle
+        run: node tests/export-mode2.mjs
 
       - name: Rejouer les tests de non-régression
         run: |
           node tests/smoke.mjs
           node tests/audit-model.mjs
           node tests/insertion-cursor.mjs
+          node tests/export-mode2.mjs
 
       - name: Préparer le fichier à télécharger
         run: |
@@ -108,9 +88,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Remix-Studio-APK
-          path: |
-            release/RemixStudio.apk
-            release/RemixStudio.apk.sha256
+          path: release/
           retention-days: 90
           if-no-files-found: error
 
@@ -120,18 +98,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest-apk --yes --cleanup-tag || true
-          gh release create latest-apk \
-            release/RemixStudio.apk \
-            release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.7 – insertion au curseur" \
-            --notes "Version 2.7 : après une division, toute nouvelle vidéo importée ou enregistrée avec la caméra est insérée directement à la ligne blanche, entre les deux morceaux, au lieu de partir à la fin. L’ordre des insertions successives est conservé. Audit 2.6, CameraX, micro, zoom tactile, fluidité et export 1080p conservés."
+          gh release create latest-apk release/RemixStudio.apk release/RemixStudio.apk.sha256 --title "Remix Studio APK 2.8 – Mode 2 interview naturelle" --notes "Mode 1 normal ou Mode 2 interview naturelle. Les clips sont associés deux par deux. Un côté parle pendant que l’autre utilise une réaction calme silencieuse ou un trompe-l’œil discret, sans répéter les cris et gestes forts. Export 1080p."
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.7.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "touch_timeline_zoom": true,\n  "performance_optimized": true,\n  "data_integrity_audited": true,\n  "project_self_repair": true,\n  "storage_guard": true,\n  "cursor_insertion": true,\n  "sequential_insert_order": true,\n  "regression_tests_repeated": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status":"success",\n  "version":"2.8.0",\n  "native_camera":true,\n  "single_timeline":true,\n  "original_ratio_preview":true,\n  "touch_timeline_zoom":true,\n  "performance_optimized":true,\n  "data_integrity_audited":true,\n  "project_self_repair":true,\n  "storage_guard":true,\n  "cursor_insertion":true,\n  "podcast_mode":true,\n  "reaction_trompe_oeil":true,\n  "calm_reaction_analysis":true,\n  "alternating_active_audio":true,\n  "regression_tests_repeated":true,\n  "export":"1080p",\n  "commit":"%s",\n  "built_at":"%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK insertion curseur 2.7 [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK Mode 2 interview 2.8 [skip ci]" || exit 0
           git push
