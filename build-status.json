@@ -18,6 +18,6 @@
   "screen_wake_lock":true,
   "regression_tests_repeated":true,
   "export":"1080p",
-  "commit":"0ed4f2876a4e77590bf61762c52b8f48049c5586",
-  "built_at":"2026-07-20T15:18:07Z"
+  "commit":"9632fa3b35f3aefd3bfa88dee5caec3665fe914c",
+  "built_at":"2026-07-20T15:50:02Z"
 }
