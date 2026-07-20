@@ -1,0 +1,6 @@
+Analyse locale des exports fournis par l’utilisateur le 20 juillet 2026.
+Mode 2 : 89.768005 s, 1080x1920, 30 fps.
+Mode 1 : 70.266666 s, 1080x1920, 30 fps.
+Écart Mode 2 : +19.501339 s (+27.75 %).
+Cause identifiée dans le moteur actuel : MediaRecorder démarre avant l’analyse des réactions et continue d’enregistrer pendant les chargements, recherches et changements de phase.
+Ce fichier sert uniquement de trace d’audit et sera supprimé avant fusion.
