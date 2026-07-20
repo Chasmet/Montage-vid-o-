@@ -109,9 +109,22 @@ function loadCursorInsertion() {
   });
 }
 
+function loadPodcastExportMode() {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-remix-podcast-mode]')) return resolve();
+    const script = document.createElement('script');
+    script.src = 'js/export-mode2.js';
+    script.dataset.remixPodcastMode = '2.8.0';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Le Mode 2 interview naturelle n’a pas pu être chargé.'));
+    document.body.appendChild(script);
+  });
+}
+
 init()
   .then(loadFinalAudit)
   .then(loadCursorInsertion)
+  .then(loadPodcastExportMode)
   .catch((error) => {
     console.error(error);
     showToast('L’application n’a pas pu démarrer correctement.');
