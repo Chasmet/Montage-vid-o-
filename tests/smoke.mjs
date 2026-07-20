@@ -31,7 +31,7 @@ for (const asset of ['preview.css', 'timeline-zoom.css', 'js/preview-ratio.js', 
 const scripts = [
   'js/core.js', 'js/editor.js', 'js/tracks.js', 'js/camera.js', 'js/render.js',
   'js/preview-ratio.js', 'js/timeline-zoom.js', 'js/init.js', 'js/final-audit.js',
-  'js/android-bridge.js', 'js/capcut-ui.js'
+  'js/insertion-cursor.js', 'js/android-bridge.js', 'js/capcut-ui.js'
 ];
 for (const file of scripts) {
   if (!existsSync(file)) throw new Error(`Script manquant : ${file}`);
@@ -39,9 +39,18 @@ for (const file of scripts) {
   if (result.status !== 0) throw new Error(`Erreur JavaScript dans ${file}\n${result.stderr}`);
 }
 
-const files = Object.fromEntries([
-  'core', 'editor', 'tracks', 'camera', 'render', 'preview', 'zoom', 'init', 'audit'
-].map((name, index) => [name, readFileSync(scripts[index], 'utf8')]));
+const files = {
+  core: readFileSync('js/core.js', 'utf8'),
+  editor: readFileSync('js/editor.js', 'utf8'),
+  tracks: readFileSync('js/tracks.js', 'utf8'),
+  camera: readFileSync('js/camera.js', 'utf8'),
+  render: readFileSync('js/render.js', 'utf8'),
+  preview: readFileSync('js/preview-ratio.js', 'utf8'),
+  zoom: readFileSync('js/timeline-zoom.js', 'utf8'),
+  init: readFileSync('js/init.js', 'utf8'),
+  audit: readFileSync('js/final-audit.js', 'utf8'),
+  insertion: readFileSync('js/insertion-cursor.js', 'utf8')
+};
 const previewCss = readFileSync('preview.css', 'utf8');
 const zoomCss = readFileSync('timeline-zoom.css', 'utf8');
 const serviceWorker = readFileSync('service-worker.js', 'utf8');
@@ -57,7 +66,8 @@ const markerGroups = [
   [previewCss, ['height:min(40vh,420px)', '.preview-frame'], 'Ergonomie compacte'],
   [files.zoom, ['touchDistance', 'beginPinch', 'movePinch', 'MIN_SCALE = 1.5', 'MAX_SCALE = 180', 'remix-studio-timeline-zoom'], 'Zoom tactile'],
   [zoomCss, ['touch-action:pan-x', '.timeline-zoom-bubble', '.timeline-zoom-hint', 'contain:layout paint'], 'Isolation graphique'],
-  [files.init, ['loadFinalAudit', 'js/final-audit.js', 'script.dataset.remixFinalAudit'], 'Chargement audit final']
+  [files.init, ['loadFinalAudit', 'loadCursorInsertion', 'js/insertion-cursor.js', 'script.dataset.remixCursorInsertion'], 'Chargement des protections'],
+  [files.insertion, ['insertionIndexAtCursor', 'insertFullMediaAt', 'pendingCameraInsertionIndex', 'saveCameraBlob = async function', 'Nouvelle vidéo insérée juste à côté de la coupe'], 'Insertion au curseur']
 ];
 for (const [content, markers, label] of markerGroups) {
   for (const marker of markers) if (!content.includes(marker)) throw new Error(`${label} incomplet : ${marker}`);
@@ -77,7 +87,7 @@ for (const marker of auditMarkers) {
 if (files.audit.includes("const blobKey = 'source-video'")) {
   throw new Error('Une clé fixe casserait encore l’annulation après un nouvel import.');
 }
-for (const marker of ['remix-studio-v8-final-audit-2-6', './js/final-audit.js']) {
+for (const marker of ['remix-studio-v9-insertion-curseur-2-7', './js/final-audit.js', './js/insertion-cursor.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache final incomplet : ${marker}`);
 }
 
@@ -94,14 +104,14 @@ const gradle = readFileSync(nativeFiles[3], 'utf8');
 if (!cameraActivity.includes('VideoCapture<Recorder>') || !cameraActivity.includes('withAudioEnabled')) throw new Error('CameraX avec audio est incomplète.');
 if (!mainActivity.includes('WebViewAssetLoader') || !mainActivity.includes('beginDownload') || !mainActivity.includes('finishDownload')) throw new Error('Pont Android incomplet.');
 if (!manifest.includes('android:hardwareAccelerated="true"') || !manifest.includes('android.permission.RECORD_AUDIO')) throw new Error('Accélération matérielle ou micro manquant.');
-if (!gradle.includes("versionName '2.6.0'") || !gradle.includes('versionCode 8') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.6.0 incomplète.');
+if (!gradle.includes("versionName '2.7.0'") || !gradle.includes('versionCode 9') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.7.0 incomplète.');
 
 const workflowMarkers = [
-  'Auditer la stabilité, les données et la fluidité', 'Vérifier le contenu réel de l’APK',
-  'assets/www/js/final-audit.js', 'Rejouer les tests de non-régression',
-  'version finale auditée', 'data_integrity_audited', 'project_self_repair',
-  'storage_guard', 'regression_tests_repeated'
+  'Auditer la stabilité, les données et la fluidité', 'Tester l’insertion à la ligne blanche',
+  'assets/www/js/insertion-cursor.js', 'Rejouer les tests de non-régression',
+  'insertion au curseur', 'cursor_insertion', 'data_integrity_audited',
+  'project_self_repair', 'storage_guard', 'regression_tests_repeated'
 ];
 for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Validation CI finale manquante : ${marker}`);
 
-console.log(`Audit réussi : intégrité, auto-réparation, stockage, fluidité, export 1080p, ${scripts.length} scripts et CameraX vérifiés.`);
+console.log(`Audit réussi : insertion au curseur, intégrité, stockage, fluidité, export 1080p, ${scripts.length} scripts et CameraX vérifiés.`);

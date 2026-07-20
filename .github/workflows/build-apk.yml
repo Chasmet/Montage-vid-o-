@@ -36,8 +36,10 @@ jobs:
           SMOKE_STATUS=$?
           node tests/audit-model.mjs >> audit-output.txt 2>&1
           MODEL_STATUS=$?
-          printf '\nsmoke_status=%s\nmodel_status=%s\n' "$SMOKE_STATUS" "$MODEL_STATUS" >> audit-output.txt
-          if [ "$SMOKE_STATUS" -ne 0 ] || [ "$MODEL_STATUS" -ne 0 ]; then exit 1; fi
+          node tests/insertion-cursor.mjs >> audit-output.txt 2>&1
+          CURSOR_STATUS=$?
+          printf '\nsmoke_status=%s\nmodel_status=%s\ncursor_status=%s\n' "$SMOKE_STATUS" "$MODEL_STATUS" "$CURSOR_STATUS" >> audit-output.txt
+          if [ "$SMOKE_STATUS" -ne 0 ] || [ "$MODEL_STATUS" -ne 0 ] || [ "$CURSOR_STATUS" -ne 0 ]; then exit 1; fi
 
       - name: Conserver le rapport d’audit initial
         if: always()
@@ -82,14 +84,19 @@ jobs:
           unzip -l app/build/outputs/apk/debug/app-debug.apk > apk-content.txt
           grep -q "assets/www/index.html" apk-content.txt
           grep -q "assets/www/js/final-audit.js" apk-content.txt
+          grep -q "assets/www/js/insertion-cursor.js" apk-content.txt
           grep -q "assets/www/js/timeline-zoom.js" apk-content.txt
           grep -q "assets/www/js/camera.js" apk-content.txt
           grep -q "assets/www/service-worker.js" apk-content.txt
+
+      - name: Tester l’insertion à la ligne blanche
+        run: node tests/insertion-cursor.mjs
 
       - name: Rejouer les tests de non-régression
         run: |
           node tests/smoke.mjs
           node tests/audit-model.mjs
+          node tests/insertion-cursor.mjs
 
       - name: Préparer le fichier à télécharger
         run: |
@@ -116,15 +123,15 @@ jobs:
           gh release create latest-apk \
             release/RemixStudio.apk \
             release/RemixStudio.apk.sha256 \
-            --title "Remix Studio APK 2.6 – version finale auditée" \
-            --notes "Version 2.6 : audit complet, historique et annulation sécurisés, import sans écrasement, auto-réparation des médias, contrôle du stockage, vérification avant export, cache Android fiabilisé et performances 2.5 conservées. Caméra CameraX, timeline unique, zoom tactile et export 1080p inclus."
+            --title "Remix Studio APK 2.7 – insertion au curseur" \
+            --notes "Version 2.7 : après une division, toute nouvelle vidéo importée ou enregistrée avec la caméra est insérée directement à la ligne blanche, entre les deux morceaux, au lieu de partir à la fin. L’ordre des insertions successives est conservé. Audit 2.6, CameraX, micro, zoom tactile, fluidité et export 1080p conservés."
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status": "success",\n  "version": "2.6.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "touch_timeline_zoom": true,\n  "performance_optimized": true,\n  "data_integrity_audited": true,\n  "project_self_repair": true,\n  "storage_guard": true,\n  "regression_tests_repeated": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status": "success",\n  "version": "2.7.0",\n  "native_camera": true,\n  "single_timeline": true,\n  "original_ratio_preview": true,\n  "touch_timeline_zoom": true,\n  "performance_optimized": true,\n  "data_integrity_audited": true,\n  "project_self_repair": true,\n  "storage_guard": true,\n  "cursor_insertion": true,\n  "sequential_insert_order": true,\n  "regression_tests_repeated": true,\n  "export": "1080p",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK finale 2.6 [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK insertion curseur 2.7 [skip ci]" || exit 0
           git push
