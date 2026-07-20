@@ -26,14 +26,23 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Auditer la stabilité, les données et la fluidité
-        run: |
-          node tests/smoke.mjs
-          node tests/audit-model.mjs
-          node tests/insertion-cursor.mjs
-          node tests/export-mode2.mjs
-          node tests/mode2-sync.mjs
-          node tests/export-watchdog.mjs
+      - name: Vérifier l’interface et les scripts
+        run: node tests/smoke.mjs
+
+      - name: Vérifier les données et la réparation
+        run: node tests/audit-model.mjs
+
+      - name: Vérifier l’insertion au curseur
+        run: node tests/insertion-cursor.mjs
+
+      - name: Vérifier le Mode 2 naturel
+        run: node tests/export-mode2.mjs
+
+      - name: Vérifier la synchronisation du Mode 2
+        run: node tests/mode2-sync.mjs
+
+      - name: Vérifier la protection anti-blocage
+        run: node tests/export-watchdog.mjs
 
       - name: Installer Java 17
         uses: actions/setup-java@v4
