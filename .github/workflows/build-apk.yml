@@ -32,6 +32,7 @@ jobs:
           node tests/audit-model.mjs
           node tests/insertion-cursor.mjs
           node tests/export-mode2.mjs
+          node tests/mode2-sync.mjs
           node tests/export-watchdog.mjs
 
       - name: Installer Java 17
@@ -63,6 +64,7 @@ jobs:
           grep -q "assets/www/js/final-audit.js" apk-content.txt
           grep -q "assets/www/js/insertion-cursor.js" apk-content.txt
           grep -q "assets/www/js/export-mode2.js" apk-content.txt
+          grep -q "assets/www/js/mode2-sync.js" apk-content.txt
           grep -q "assets/www/js/export-watchdog.js" apk-content.txt
           grep -q "assets/www/js/timeline-zoom.js" apk-content.txt
           grep -q "assets/www/js/camera.js" apk-content.txt
@@ -74,6 +76,9 @@ jobs:
       - name: Tester le Mode 2 interview naturelle
         run: node tests/export-mode2.mjs
 
+      - name: Tester la synchronisation précise du Mode 2
+        run: node tests/mode2-sync.mjs
+
       - name: Tester la protection anti-blocage de l’export
         run: node tests/export-watchdog.mjs
 
@@ -83,6 +88,7 @@ jobs:
           node tests/audit-model.mjs
           node tests/insertion-cursor.mjs
           node tests/export-mode2.mjs
+          node tests/mode2-sync.mjs
           node tests/export-watchdog.mjs
 
       - name: Préparer le fichier à télécharger
@@ -105,14 +111,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest-apk --yes --cleanup-tag || true
-          gh release create latest-apk release/RemixStudio.apk release/RemixStudio.apk.sha256 --title "Remix Studio APK 2.8.1 – export débloqué" --notes "Correctif 2.8.1 : les exports Mode 1 et Mode 2 ne restent plus bloqués en fin de clip. Un rappel de secours continue le rendu lorsque le décodeur Android cesse d’envoyer des images, les clips figés sont relancés et l’écran reste actif pendant l’export 1080p."
+          gh release create latest-apk release/RemixStudio.apk release/RemixStudio.apk.sha256 --title "Remix Studio APK 2.9 – Mode 2 synchronisé" --notes "Version 2.9 : le Mode 2 retire les temps d’analyse et de préparation du fichier final. L’image et le son démarrent ensemble, les transitions entre les côtés sont synchronisées et la durée exportée reste proche de celle du Mode 1. Le Mode 1 reste inchangé."
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{\n  "status":"success",\n  "version":"2.8.1",\n  "native_camera":true,\n  "single_timeline":true,\n  "original_ratio_preview":true,\n  "touch_timeline_zoom":true,\n  "performance_optimized":true,\n  "data_integrity_audited":true,\n  "project_self_repair":true,\n  "storage_guard":true,\n  "cursor_insertion":true,\n  "podcast_mode":true,\n  "reaction_trompe_oeil":true,\n  "calm_reaction_analysis":true,\n  "alternating_active_audio":true,\n  "export_watchdog":true,\n  "screen_wake_lock":true,\n  "regression_tests_repeated":true,\n  "export":"1080p",\n  "commit":"%s",\n  "built_at":"%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{\n  "status":"success",\n  "version":"2.9.0",\n  "native_camera":true,\n  "single_timeline":true,\n  "original_ratio_preview":true,\n  "touch_timeline_zoom":true,\n  "performance_optimized":true,\n  "data_integrity_audited":true,\n  "project_self_repair":true,\n  "storage_guard":true,\n  "cursor_insertion":true,\n  "podcast_mode":true,\n  "reaction_trompe_oeil":true,\n  "calm_reaction_analysis":true,\n  "alternating_active_audio":true,\n  "mode2_synchronized":true,\n  "mode2_setup_time_removed":true,\n  "export_watchdog":true,\n  "screen_wake_lock":true,\n  "regression_tests_repeated":true,\n  "export":"1080p",\n  "commit":"%s",\n  "built_at":"%s"\n}\n' "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json
-          git commit -m "Confirmer la construction APK export débloqué 2.8.1 [skip ci]" || exit 0
+          git commit -m "Confirmer la construction APK Mode 2 synchronisé 2.9 [skip ci]" || exit 0
           git push
