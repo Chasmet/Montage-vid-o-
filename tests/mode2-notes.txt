@@ -1,6 +1,0 @@
-Mode 2 interview naturelle 2.8.0
-- duos successifs
-- audio alterné
-- réactions calmes automatiques
-- trompe-l’œil anti-boucle
-- export 1080p
