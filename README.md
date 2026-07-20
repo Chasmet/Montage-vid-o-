@@ -1,4 +1,4 @@
-# Remix Studio 2.8
+# Remix Studio 2.9
 
 [![Construire APK Android](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml/badge.svg)](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml)
 
@@ -26,9 +26,9 @@ L’APK est reconstruit automatiquement après chaque modification de la branche
 
 ### Mode 1 — Montage normal
 
-Les clips passent les uns après les autres en plein écran, selon l’ordre de la timeline.
+Les clips passent les uns après les autres en plein écran, selon l’ordre de la timeline. Ce mode reste inchangé dans la version 2.9.
 
-### Mode 2 — Interview naturelle
+### Mode 2 — Interview naturelle synchronisée
 
 - Les clips sont associés deux par deux.
 - Le premier parle à gauche pendant que le second reste animé silencieusement à droite.
@@ -39,7 +39,10 @@ Les clips passent les uns après les autres en plein écran, selon l’ordre de 
 - Le côté qui ne parle pas est légèrement assombri.
 - Le son actif, les volumes et les clips muets de la timeline sont respectés.
 - Le dernier clip sans partenaire est exporté seul.
-- La durée totale du projet est conservée.
+- L’analyse des réactions est terminée avant le démarrage du fichier final.
+- L’enregistrement se met en pause pendant la préparation du duo suivant.
+- Les secondes de chargement ne sont plus ajoutées à la vidéo finale.
+- La durée du Mode 2 reste proche de la durée réelle de la timeline et du Mode 1.
 
 ## Fonctions incluses
 
@@ -52,10 +55,11 @@ Les clips passent les uns après les autres en plein écran, selon l’ordre de 
 - Annuler et rétablir jusqu’à 40 modifications.
 - Sauvegarde automatique locale dans IndexedDB.
 - Auto-réparation des médias et protection du stockage.
+- Protection anti-blocage pendant les exports.
 - Export Full HD 1080p.
 - MP4 quand Android le prend en charge, sinon WebM haute qualité.
 - Fonctionnement hors ligne, sans compte et sans serveur.
 
 ## Construction Android
 
-Le workflow `.github/workflows/build-apk.yml` teste l’interface, les données, l’insertion au curseur, le Mode 2, CameraX et le contenu réel de l’APK avant publication.
+Le workflow `.github/workflows/build-apk.yml` teste l’interface, les données, l’insertion au curseur, le Mode 2 synchronisé, CameraX et le contenu réel de l’APK avant publication.
