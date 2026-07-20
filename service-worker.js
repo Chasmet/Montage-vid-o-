@@ -1,5 +1,5 @@
-const CACHE = 'remix-studio-v11-export-watchdog-2-8-1';
-const ASSETS = ['./', './index.html', './style.css', './preview.css', './timeline-zoom.css', './js/core.js', './js/editor.js', './js/tracks.js', './js/camera.js', './js/render.js', './js/preview-ratio.js', './js/timeline-zoom.js', './js/init.js', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/export-watchdog.js', './js/capcut-ui.js', './js/android-bridge.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'remix-studio-v12-mode2-synchronise-2-9';
+const ASSETS = ['./', './index.html', './style.css', './preview.css', './timeline-zoom.css', './js/core.js', './js/editor.js', './js/tracks.js', './js/camera.js', './js/render.js', './js/preview-ratio.js', './js/timeline-zoom.js', './js/init.js', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/mode2-sync.js', './js/export-watchdog.js', './js/capcut-ui.js', './js/android-bridge.js', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', event => {
