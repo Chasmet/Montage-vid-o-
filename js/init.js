@@ -121,10 +121,23 @@ function loadPodcastExportMode() {
   });
 }
 
+function loadExportWatchdog() {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[data-remix-export-watchdog]')) return resolve();
+    const script = document.createElement('script');
+    script.src = 'js/export-watchdog.js';
+    script.dataset.remixExportWatchdog = '2.8.1';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('La protection anti-blocage de l’export n’a pas pu être chargée.'));
+    document.body.appendChild(script);
+  });
+}
+
 init()
   .then(loadFinalAudit)
   .then(loadCursorInsertion)
   .then(loadPodcastExportMode)
+  .then(loadExportWatchdog)
   .catch((error) => {
     console.error(error);
     showToast('L’application n’a pas pu démarrer correctement.');
