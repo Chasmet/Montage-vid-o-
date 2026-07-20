@@ -42,8 +42,6 @@ function bindEvents() {
   els.clearProjectBtn.addEventListener('click', clearProject);
   els.exportBtn.addEventListener('click', exportTimeline);
 
-  // Le défilement et le pincement sont gérés uniquement dans timeline-zoom.js.
-  // L’ancien second gestionnaire provoquait deux calculs et deux recherches vidéo pour chaque mouvement.
   window.addEventListener('resize', () => syncTimelineScrollFromState(), { passive: true });
   window.addEventListener('beforeunload', () => currentStream?.getTracks().forEach((track) => track.stop()));
   document.addEventListener('visibilitychange', () => {
@@ -58,9 +56,7 @@ function bindEvents() {
       event.preventDefault();
       togglePlay();
     }
-    if (event.key.toLowerCase() === 's' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-      splitAtPlayhead();
-    }
+    if (event.key.toLowerCase() === 's' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) splitAtPlayhead();
   });
 }
 
@@ -85,58 +81,29 @@ async function init() {
   }
 }
 
-function loadFinalAudit() {
+function loadScriptOnce(selector, src, dataKey, dataValue, errorMessage) {
   return new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-remix-final-audit]')) return resolve();
+    if (document.querySelector(selector)) return resolve();
     const script = document.createElement('script');
-    script.src = 'js/final-audit.js';
-    script.dataset.remixFinalAudit = '2.6.0';
+    script.src = src;
+    script.dataset[dataKey] = dataValue;
     script.onload = resolve;
-    script.onerror = () => reject(new Error('La couche de sécurité finale n’a pas pu être chargée.'));
+    script.onerror = () => reject(new Error(errorMessage));
     document.body.appendChild(script);
   });
 }
 
-function loadCursorInsertion() {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-remix-cursor-insertion]')) return resolve();
-    const script = document.createElement('script');
-    script.src = 'js/insertion-cursor.js';
-    script.dataset.remixCursorInsertion = '2.7.0';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('La logique d’insertion à la ligne blanche n’a pas pu être chargée.'));
-    document.body.appendChild(script);
-  });
-}
-
-function loadPodcastExportMode() {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-remix-podcast-mode]')) return resolve();
-    const script = document.createElement('script');
-    script.src = 'js/export-mode2.js';
-    script.dataset.remixPodcastMode = '2.8.0';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('Le Mode 2 interview naturelle n’a pas pu être chargé.'));
-    document.body.appendChild(script);
-  });
-}
-
-function loadExportWatchdog() {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector('script[data-remix-export-watchdog]')) return resolve();
-    const script = document.createElement('script');
-    script.src = 'js/export-watchdog.js';
-    script.dataset.remixExportWatchdog = '2.8.1';
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('La protection anti-blocage de l’export n’a pas pu être chargée.'));
-    document.body.appendChild(script);
-  });
-}
+const loadFinalAudit = () => loadScriptOnce('script[data-remix-final-audit]', 'js/final-audit.js', 'remixFinalAudit', '2.6.0', 'La couche de sécurité finale n’a pas pu être chargée.');
+const loadCursorInsertion = () => loadScriptOnce('script[data-remix-cursor-insertion]', 'js/insertion-cursor.js', 'remixCursorInsertion', '2.7.0', 'La logique d’insertion à la ligne blanche n’a pas pu être chargée.');
+const loadPodcastExportMode = () => loadScriptOnce('script[data-remix-podcast-mode]', 'js/export-mode2.js', 'remixPodcastMode', '2.8.0', 'Le Mode 2 interview naturelle n’a pas pu être chargé.');
+const loadMode2Synchronization = () => loadScriptOnce('script[data-remix-mode2-sync]', 'js/mode2-sync.js', 'remixMode2Sync', '2.9.0', 'La synchronisation précise du Mode 2 n’a pas pu être chargée.');
+const loadExportWatchdog = () => loadScriptOnce('script[data-remix-export-watchdog]', 'js/export-watchdog.js', 'remixExportWatchdog', '2.8.1', 'La protection anti-blocage de l’export n’a pas pu être chargée.');
 
 init()
   .then(loadFinalAudit)
   .then(loadCursorInsertion)
   .then(loadPodcastExportMode)
+  .then(loadMode2Synchronization)
   .then(loadExportWatchdog)
   .catch((error) => {
     console.error(error);

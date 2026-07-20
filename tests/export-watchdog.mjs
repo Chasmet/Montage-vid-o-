@@ -18,16 +18,16 @@ for (const marker of [
   if (!watchdog.includes(marker)) throw new Error(`Protection anti-blocage incomplète : ${marker}`);
 }
 
-for (const marker of ['loadExportWatchdog', 'js/export-watchdog.js', "script.dataset.remixExportWatchdog = '2.8.1'"]) {
+for (const marker of ['loadExportWatchdog', 'js/export-watchdog.js', 'remixExportWatchdog', "'2.8.1'"]) {
   if (!init.includes(marker)) throw new Error(`Chargement du correctif incomplet : ${marker}`);
 }
 
-for (const marker of ['remix-studio-v11-export-watchdog-2-8-1', './js/export-watchdog.js']) {
+for (const marker of ['remix-studio-v12-mode2-synchronise-2-9', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache du correctif incomplet : ${marker}`);
 }
 
-if (!gradle.includes("versionName '2.8.1'") || !gradle.includes('versionCode 11')) {
-  throw new Error('La version APK 2.8.1 n’est pas configurée.');
+if (!gradle.includes("versionName '2.9.0'") || !gradle.includes('versionCode 12')) {
+  throw new Error('La version APK 2.9.0 n’est pas configurée.');
 }
 
-console.log('Correctif export 2.8.1 validé : rappel de secours, relance des clips bloqués, verrouillage écran et cache actualisé.');
+console.log('Protection anti-blocage validée dans Remix Studio 2.9.0 : rappel de secours, relance des clips et verrouillage écran conservés.');
