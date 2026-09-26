@@ -105,7 +105,7 @@
   }
 
   async function garbageCollectMedia() {
-    if (!db) return;
+    if (!db || projectMetadataUnavailable) return;
     const referenced = collectReferencedBlobKeys();
     const allKeys = await getAllBlobKeys().catch(() => []);
     await Promise.all(allKeys
@@ -124,28 +124,31 @@
     scheduleMediaGarbageCollection();
   };
 
-  async function hydrateAndRepairProject() {
+  async function hydrateAndRepairProject({ removeMissing = false } = {}) {
+    if (!db && (state.source?.blobKey || (state.cameraClips || []).some((clip) => clip.blobKey))) {
+      throw new Error('Stockage des vidéos indisponible. Le projet a été conservé : rouvre l’application.');
+    }
     const missingCameraIds = new Set();
     let missingSource = false;
 
     if (state.source?.blobKey && !state.source.url) {
-      const blob = await getBlob(state.source.blobKey).catch(() => null);
+      const blob = await getBlob(state.source.blobKey);
       if (blob) state.source.url = URL.createObjectURL(blob);
       else missingSource = true;
     }
 
     for (const clip of state.cameraClips || []) {
       if (clip.url || !clip.blobKey) continue;
-      const blob = await getBlob(clip.blobKey).catch(() => null);
+      const blob = await getBlob(clip.blobKey);
       if (blob) clip.url = URL.createObjectURL(blob);
       else missingCameraIds.add(clip.id);
     }
 
-    if (missingSource) {
+    if (missingSource && removeMissing) {
       state.source = null;
       state.timelineSegments = state.timelineSegments.filter((segment) => segment.type !== 'source');
     }
-    if (missingCameraIds.size) {
+    if (missingCameraIds.size && removeMissing) {
       state.cameraClips = state.cameraClips.filter((clip) => !missingCameraIds.has(clip.id));
       state.timelineSegments = state.timelineSegments.filter((segment) => !missingCameraIds.has(segment.mediaId));
     }
@@ -156,10 +159,12 @@
       state.selectedId = state.timelineSegments[0]?.id || null;
     }
 
-    const repaired = missingSource || missingCameraIds.size > 0;
+    const repaired = removeMissing && (missingSource || missingCameraIds.size > 0);
     if (repaired) {
       safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
       setTimeout(() => showToast('Projet réparé : les médias devenus indisponibles ont été retirés.'), 250);
+    } else if (missingSource || missingCameraIds.size) {
+      setTimeout(() => showToast('Média introuvable : projet conservé. Vérifie le stockage avant réparation.'), 250);
     }
     return { repaired, missingSource, missingCameraCount: missingCameraIds.size };
   }
@@ -167,13 +172,15 @@
   hydrateMediaUrls = hydrateAndRepairProject;
 
   restoreSnapshot = function auditedRestoreSnapshot(raw) {
-    revokeProjectUrls(state);
+    let restored;
     try {
-      state = migrateSavedState(JSON.parse(raw));
+      restored = migrateSavedState(JSON.parse(raw));
     } catch {
       showToast('Cette étape de l’historique est endommagée.');
       return;
     }
+    revokeProjectUrls(state);
+    state = restored;
     hydrateAndRepairProject().then(() => {
       activePreviewSegmentId = null;
       renderAll();
@@ -298,8 +305,8 @@
   function saveImmediately() {
     clearTimeout(autosaveTimer);
     try {
-      safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
-      setSaving(false);
+      const saved = safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
+      setSaving(false, !saved);
     } catch { /* sauvegarde déjà protégée par safeStorage */ }
   }
 
@@ -349,7 +356,7 @@
     const grid = els.projectSheet.querySelector('.settings-grid');
     (grid || els.projectSheet).append(card);
     card.querySelector('#projectHealthButton').addEventListener('click', async () => {
-      await hydrateAndRepairProject();
+      await hydrateAndRepairProject({ removeMissing: true });
       renderAll();
       scheduleSave();
       await updateDiagnostics();

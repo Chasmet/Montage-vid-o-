@@ -22,7 +22,7 @@ for (const marker of ['loadExportWatchdog', 'js/export-watchdog.js', 'remixExpor
   if (!init.includes(marker)) throw new Error(`Chargement du correctif incomplet : ${marker}`);
 }
 
-for (const marker of ['remix-studio-v16-reaction-camera-full-frame', './js/export-watchdog.js']) {
+for (const marker of ['remix-studio-v17-project-storage-recovery', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache du correctif incomplet : ${marker}`);
 }
 

@@ -6,10 +6,14 @@ const uid = (prefix = 'id') => `${prefix}_${Date.now()}_${Math.random().toString
 const clamp = (value, min, max) => Math.min(Math.max(Number(value) || 0, min), max);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const TIMELINE_PX_PER_SECOND = 46;
+let projectMetadataUnavailable = false;
 
 const safeStorage = {
-  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
-  set(key, value) { try { localStorage.setItem(key, value); } catch { /* stockage bloqué */ } },
+  get(key) { try { return localStorage.getItem(key); } catch { if (key === 'remix-studio-state') projectMetadataUnavailable = true; return null; } },
+  set(key, value) {
+    if (key === 'remix-studio-state' && projectMetadataUnavailable) return false;
+    try { localStorage.setItem(key, value); return true; } catch { return false; }
+  },
   remove(key) { try { localStorage.removeItem(key); } catch { /* stockage bloqué */ } }
 };
 
@@ -229,16 +233,18 @@ function showToast(message) {
   toastTimer = setTimeout(() => els.toast.classList.add('hidden'), 2800);
 }
 
-function setSaving(isSaving) {
-  els.saveStatus.textContent = isSaving ? 'Sauvegarde…' : 'Sauvegardé';
+function setSaving(isSaving, failed = false) {
+  els.saveStatus.textContent = failed ? 'Sauvegarde impossible'
+    : !db && (state.source?.blobKey || state.cameraClips.some((clip) => clip.blobKey))
+      ? 'Médias indisponibles' : isSaving ? 'Sauvegarde…' : 'Sauvegardé';
 }
 
 function scheduleSave() {
   setSaving(true);
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
-    safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
-    setSaving(false);
+    const saved = safeStorage.set('remix-studio-state', JSON.stringify(serializableState()));
+    setSaving(false, !saved);
   }, 350);
 }
 
@@ -258,7 +264,10 @@ function openDB() {
 }
 
 function putBlob(key, blob) {
-  if (!db) { memoryBlobs.set(key, blob); return Promise.resolve(); }
+  if (!db || projectMetadataUnavailable) return Promise.reject(new Error('Stockage du projet indisponible. Rouvre l’application avant d’importer ou filmer.'));
+  if (!safeStorage.set('remix-studio-state', JSON.stringify(serializableState()))) {
+    return Promise.reject(new Error('Sauvegarde du projet indisponible. Libère de l’espace avant d’importer ou filmer.'));
+  }
   return new Promise((resolve, reject) => {
     const tx = db.transaction('blobs', 'readwrite');
     tx.objectStore('blobs').put(blob, key);
@@ -312,13 +321,30 @@ async function hydrateMediaUrls() {
 
 async function loadSavedProject() {
   const raw = safeStorage.get('remix-studio-state');
-  if (!raw) return;
+  if (!raw) {
+    if (projectMetadataUnavailable) {
+      setSaving(false, true);
+      setTimeout(() => showToast('Projet inaccessible : aucune donnée effacée. Rouvre l’application.'), 300);
+    }
+    return;
+  }
   try {
     state = migrateSavedState(JSON.parse(raw));
-    await hydrateMediaUrls();
   } catch (error) {
     console.warn('Projet sauvegardé illisible', error);
     state = initialState();
+    return;
+  }
+  try {
+    if (!db && (state.source?.blobKey || state.cameraClips.some((clip) => clip.blobKey))) {
+      throw new Error('Le stockage des vidéos est temporairement indisponible.');
+    }
+    await hydrateMediaUrls();
+  } catch (error) {
+    // Keep the metadata and blob keys intact: a temporary IndexedDB failure
+    // must never be mistaken for a deleted project on the next launch.
+    console.warn('Médias du projet temporairement inaccessibles', error);
+    setTimeout(() => showToast('Stockage indisponible : projet conservé. Rouvre l’application.'), 300);
   }
 }
 
