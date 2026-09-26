@@ -10,8 +10,8 @@ android {
         applicationId 'com.chasmet.remixstudio'
         minSdk 26
         targetSdk 35
-        versionCode (System.getenv('CI_VERSION_CODE') ?: '13').toInteger()
-        versionName (System.getenv('CI_VERSION_NAME') ?: '3.0.0')
+        versionCode = Integer.parseInt(System.getenv('CI_VERSION_CODE') ?: '13')
+        versionName = System.getenv('CI_VERSION_NAME') ?: '3.0.0'
     }
 
     signingConfigs {
