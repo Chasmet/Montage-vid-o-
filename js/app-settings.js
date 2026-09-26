@@ -38,5 +38,5 @@
     }
     if (state !== 'checking') automaticCheck = false;
   };
-  if ($('autoUpdateToggle').checked) setTimeout(() => { automaticCheck = true; window.Android.checkForUpdate(); }, 3500);
+  if ($('autoUpdateToggle').checked) setTimeout(() => { automaticCheck = true; window.Android.checkForUpdate(); }, 2500);
 })();
