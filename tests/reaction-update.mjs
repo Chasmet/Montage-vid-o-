@@ -22,7 +22,7 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
   'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick',
   'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionCameraFrame', 'reactionVideoFrame',
-  'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingSmart', 'reactionFramingFull', 'reactionFramingFill',
+  'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingClean', 'reactionFramingCrop', 'reactionFramingFree',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
   'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
@@ -83,15 +83,15 @@ if (!reaction.includes("outputLayout === 'horizontal'") ||
     !reaction.includes("camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height }") ||
     !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
   throw new Error('L’export 16:9 doit remplir le canvas avec deux moitiés strictement identiques.');
-if (!reaction.includes('drawBlurredSlotBackground') ||
-    !reaction.includes('drawForegroundInSharedFrame') ||
+if (!reaction.includes('drawForegroundInSharedFrame') ||
     !reaction.includes('const cameraFrameRegion = outputFrameForSlot(slots.camera)') ||
     !reaction.includes('const videoFrameRegion = outputFrameForSlot(slots.video)') ||
-    !reaction.includes("outputFraming === 'smart'") ||
-    !reaction.includes('const factor = 1.28') ||
-    !reaction.includes('cameraFit,\n      true') ||
-    !reaction.includes('videoFit,\n      false'))
-  throw new Error('Les modes Entière, Smart et Plein écran doivent contrôler le cadrage final.');
+    !reaction.includes("outputFraming === 'clean'") ||
+    !reaction.includes("outputFraming === 'crop'") ||
+    !reaction.includes("outputFraming === 'free'"))
+  throw new Error('Les modes Propre, Recadré et Libre doivent contrôler le cadrage final.');
+if (reaction.includes('drawBlurredSlotBackground') || reaction.includes("ctx.filter = 'blur(") || reaction.includes('const factor = 1.28'))
+  throw new Error('Aucun flou, duplication ou ancien mode Smart ne doit rester dans la sortie Réaction.');
 if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
   throw new Error('L’export Réaction doit être MP4 direct sans fallback WebM.');
 
@@ -106,4 +106,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction améliorée : modes Smart/Entière/Plein écran, cadres synchronisés, MP4 direct et mise à jour signée contrôlés.');
+console.log('Réaction propre : zéro flou/duplication, modes Propre/Recadré/Libre, MP4 direct et mise à jour signée contrôlés.');

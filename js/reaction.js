@@ -17,7 +17,7 @@
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
-  let outputFraming = 'smart';
+  let outputFraming = 'clean';
   let sourceAspect = 9 / 16;
   let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
@@ -71,20 +71,8 @@
   }
 
   function outputFrameForSlot(slot) {
-    if (outputFraming === 'fill') return { ...slot };
-    const base = fitSharedFrame(slot, sourceAspect);
-    if (outputFraming === 'smart') {
-      const factor = 1.28;
-      const w = base.w * factor;
-      const h = base.h * factor;
-      return {
-        x: slot.x + (slot.w - w) / 2,
-        y: slot.y + (slot.h - h) / 2,
-        w,
-        h
-      };
-    }
-    return base;
+    if (outputFraming === 'crop' || outputFraming === 'free') return { ...slot };
+    return fitSharedFrame(slot, sourceAspect);
   }
 
   function drawImageInRegion(element, region, scale, panX, panY, mirror = false) {
@@ -112,28 +100,16 @@
     if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
       const panX = panXPercent / 100 * w;
       const panY = panYPercent / 100 * h;
-
-      if (fit === 'contain') {
-        // Fill unused space with a blurred duplicate, while keeping the real source 100% visible.
-        const backgroundScale = Math.max(w / element.videoWidth, h / element.videoHeight) * 1.08;
-        ctx.save();
-        ctx.filter = 'blur(32px) brightness(0.55) saturate(0.9)';
-        ctx.globalAlpha = 0.9;
-        drawImageInRegion(element, region, backgroundScale, 0, 0, mirror);
-        ctx.restore();
-
-        const foregroundScale = Math.min(w / element.videoWidth, h / element.videoHeight) * zoom;
-        drawImageInRegion(element, region, foregroundScale, panX, panY, mirror);
-      } else {
-        const coverScale = Math.max(w / element.videoWidth, h / element.videoHeight) * zoom;
-        drawImageInRegion(element, region, coverScale, panX, panY, mirror);
-      }
+      const scaleBase = fit === 'contain'
+        ? Math.min(w / element.videoWidth, h / element.videoHeight)
+        : Math.max(w / element.videoWidth, h / element.videoHeight);
+      drawImageInRegion(element, region, scaleBase * zoom, panX, panY, mirror);
     }
     ctx.restore();
   }
 
   function previewFrameSize(rect) {
-    if (outputFraming === 'fill') {
+    if (outputFraming === 'crop' || outputFraming === 'free') {
       return { w: rect.width, h: rect.height };
     }
     let w = rect.width;
@@ -141,11 +117,6 @@
     if (h > rect.height) {
       h = rect.height;
       w = h * sourceAspect;
-    }
-    if (outputFraming === 'smart') {
-      const factor = 1.28;
-      w *= factor;
-      h *= factor;
     }
     return { w, h };
   }
@@ -173,17 +144,23 @@
 
   function setFramingMode(mode) {
     if (active()) return;
-    outputFraming = ['full', 'fill', 'smart'].includes(mode) ? mode : 'smart';
-    $('reactionFramingSmart').classList.toggle('active', outputFraming === 'smart');
-    $('reactionFramingFull').classList.toggle('active', outputFraming === 'full');
-    $('reactionFramingFill').classList.toggle('active', outputFraming === 'fill');
+    outputFraming = ['clean', 'crop', 'free'].includes(mode) ? mode : 'clean';
+    $('reactionFramingClean').classList.toggle('active', outputFraming === 'clean');
+    $('reactionFramingCrop').classList.toggle('active', outputFraming === 'crop');
+    $('reactionFramingFree').classList.toggle('active', outputFraming === 'free');
 
-    if (outputFraming === 'fill') {
-      cameraFit = 'cover';
-      videoFit = 'cover';
-    } else {
+    if (outputFraming === 'clean') {
       cameraFit = 'cover';
       videoFit = 'contain';
+      cameraPanX = cameraPanY = videoPanX = videoPanY = 0;
+      $('reactionCameraZoom').value = '100';
+      $('reactionZoom').value = '100';
+    } else if (outputFraming === 'crop') {
+      cameraFit = 'cover';
+      videoFit = 'cover';
+      cameraPanX = cameraPanY = videoPanX = videoPanY = 0;
+      $('reactionCameraZoom').value = '100';
+      $('reactionZoom').value = '100';
     }
 
     requestAnimationFrame(() => {
@@ -192,11 +169,11 @@
     });
     ensureDraw();
 
-    const label = outputFraming === 'smart'
-      ? 'Smart : bandes réduites, recadrage léger.'
-      : outputFraming === 'full'
-        ? 'Image entière : aucune partie coupée.'
-        : 'Plein écran : chaque moitié est remplie.';
+    const label = outputFraming === 'clean'
+      ? 'Propre : fond noir uni, aucune duplication ni flou.'
+      : outputFraming === 'crop'
+        ? 'Recadré : les deux moitiés sont remplies, avec coupe si nécessaire.'
+        : 'Libre : utilise zoom, déplacement et Entière/Remplir manuellement.';
     status(label);
   }
 
@@ -234,20 +211,6 @@
     $('reactionFitCover').classList.toggle('active', videoFit === 'cover');
   }
 
-  function drawBlurredSlotBackground(element, slot, mirror = false) {
-    if (!(element.readyState >= 2 && element.videoWidth && element.videoHeight)) return;
-    const { x, y, w, h } = slot;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, y, w, h);
-    ctx.clip();
-    ctx.filter = 'blur(32px) brightness(0.55) saturate(0.9)';
-    ctx.globalAlpha = 0.9;
-    const scale = Math.max(w / element.videoWidth, h / element.videoHeight) * 1.08;
-    drawImageInRegion(element, slot, scale, 0, 0, mirror);
-    ctx.restore();
-  }
-
   function drawForegroundInSharedFrame(element, frame, zoom, panXPercent, panYPercent, fit, mirror = false) {
     const { x, y, w, h } = frame;
     ctx.save();
@@ -275,15 +238,12 @@
       return;
     }
 
-    ctx.fillStyle = '#05070c';
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const slots = regions();
     const cameraFrameRegion = outputFrameForSlot(slots.camera);
     const videoFrameRegion = outputFrameForSlot(slots.video);
-
-    drawBlurredSlotBackground(camera, slots.camera, true);
-    drawBlurredSlotBackground(video, slots.video, false);
 
     drawForegroundInSharedFrame(
       camera,
@@ -521,17 +481,17 @@
           $('reactionRecord').disabled = !cameraStream || !fileUrl;
           $('reactionOutputVertical').disabled = false;
           $('reactionOutputHorizontal').disabled = false;
-          $('reactionFramingSmart').disabled = false;
-          $('reactionFramingFull').disabled = false;
-          $('reactionFramingFill').disabled = false;
+          $('reactionFramingClean').disabled = false;
+          $('reactionFramingCrop').disabled = false;
+          $('reactionFramingFree').disabled = false;
         }
       };
 
       $('reactionOutputVertical').disabled = true;
       $('reactionOutputHorizontal').disabled = true;
-      $('reactionFramingSmart').disabled = true;
-      $('reactionFramingFull').disabled = true;
-      $('reactionFramingFill').disabled = true;
+      $('reactionFramingClean').disabled = true;
+      $('reactionFramingCrop').disabled = true;
+      $('reactionFramingFree').disabled = true;
       recorder.start(500);
       await video.play();
       recordingPaused = false;
@@ -539,13 +499,13 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'smart' ? 'Smart' : outputFraming === 'full' ? 'Image entière' : 'Plein écran'} · MP4.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'clean' ? 'Propre' : outputFraming === 'crop' ? 'Recadré' : 'Libre'} · MP4.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
-      $('reactionFramingSmart').disabled = false;
-      $('reactionFramingFull').disabled = false;
-      $('reactionFramingFill').disabled = false;
+      $('reactionFramingClean').disabled = false;
+      $('reactionFramingCrop').disabled = false;
+      $('reactionFramingFree').disabled = false;
       if (active()) recorder.stop();
       status(`Enregistrement impossible : ${error.message}`);
     }
@@ -674,9 +634,9 @@
 
   $('reactionOutputVertical').addEventListener('click', () => setOutputLayout('vertical'));
   $('reactionOutputHorizontal').addEventListener('click', () => setOutputLayout('horizontal'));
-  $('reactionFramingSmart').addEventListener('click', () => setFramingMode('smart'));
-  $('reactionFramingFull').addEventListener('click', () => setFramingMode('full'));
-  $('reactionFramingFill').addEventListener('click', () => setFramingMode('fill'));
+  $('reactionFramingClean').addEventListener('click', () => setFramingMode('clean'));
+  $('reactionFramingCrop').addEventListener('click', () => setFramingMode('crop'));
+  $('reactionFramingFree').addEventListener('click', () => setFramingMode('free'));
 
   $('reactionRecord').addEventListener('click', startRecording);
   $('reactionPause').addEventListener('click', pauseRecording);
@@ -753,7 +713,7 @@
   $('reactionTab').addEventListener('click', () => showTab('reaction'));
 
   setOutputLayout('vertical');
-  setFramingMode('smart');
+  setFramingMode('clean');
   window.addEventListener('resize', () => {
     syncSharedPreviewFrameSize();
     syncPreviewTransforms();
