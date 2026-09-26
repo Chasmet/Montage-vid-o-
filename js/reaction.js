@@ -6,7 +6,6 @@
   const camera = $('reactionCameraVideo');
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false });
-  const controls = ['reactionRecord', 'reactionPause', 'reactionStop'];
   let fileUrl, cameraStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, mix;
   let visible = false, recordingPaused = false, frameId = 0, offsetX = 0, offsetY = 0, drag = null;
   let mute = false;
@@ -14,6 +13,21 @@
   const status = (message) => { $('reactionStatus').textContent = message; };
   const format = (time) => `${String(Math.floor((time || 0) / 60)).padStart(2, '0')}:${String(Math.floor((time || 0) % 60)).padStart(2, '0')}`;
   const active = () => recorder && recorder.state !== 'inactive';
+
+  async function saveReactionBlob(blob, filename) {
+    if (window.Android?.beginDownload && typeof window.saveRemixBlobToAndroid === 'function') {
+      await window.saveRemixBlobToAndroid(blob, filename);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 
   function drawHalf(element, top, zoom = 1, panX = 0, panY = 0) {
     const width = canvas.width, height = canvas.height / 2;
@@ -104,22 +118,33 @@
       recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5_000_000 });
       recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
       recorder.onerror = () => status('Erreur d’encodage : vérifie l’espace disponible.');
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         picture.getTracks().forEach((track) => track.stop());
         micNode?.disconnect(); micNode = null;
         sourceGain?.disconnect(mix); mix = null;
-        if (!chunks.length) { status('Aucun fichier généré.'); return; }
+        if (!chunks.length) {
+          $('reactionRecord').disabled = false;
+          status('Aucun fichier généré.');
+          return;
+        }
         const blob = new Blob(chunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Remix-Reaction-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
-        document.body.append(link); link.click(); link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        status('Export terminé. Vidéo enregistrée dans Téléchargements.');
+        const filename = `Remix-Reaction-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
+        try {
+          status('Enregistrement terminé. Sauvegarde du fichier…');
+          await saveReactionBlob(blob, filename);
+          status('Export terminé. Vidéo enregistrée dans Téléchargements.');
+        } catch (error) {
+          status(`Export impossible : ${error.message}`);
+        } finally {
+          $('reactionRecord').disabled = !cameraStream || !fileUrl;
+        }
       };
-      await video.play();
-      recorder.start(1000);
+      video.pause();
+      recorder.start(500);
+      video.play().catch((error) => {
+        status(`Lecture impossible : ${error.message}`);
+        if (active()) stopRecording();
+      });
       recordingPaused = false;
       $('reactionRecord').disabled = true;
       $('reactionCamera').disabled = true;
@@ -144,7 +169,7 @@
   function stopRecording() {
     if (!active()) return;
     video.pause(); recorder.stop(); recordingPaused = false;
-    $('reactionRecord').disabled = false;
+    $('reactionRecord').disabled = true;
     $('reactionCamera').disabled = false;
     $('reactionPause').disabled = $('reactionStop').disabled = true;
     status('Finalisation de la vidéo…');

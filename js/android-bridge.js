@@ -30,6 +30,8 @@
     }
   }
 
+  if (isAndroidApp) window.saveRemixBlobToAndroid = saveBlobToAndroid;
+
   if (!isAndroidApp) return;
 
   document.documentElement.classList.add('android-app');

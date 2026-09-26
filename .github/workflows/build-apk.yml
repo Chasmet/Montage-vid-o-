@@ -103,6 +103,14 @@ jobs:
         if: env.SIGNING_READY == 'true'
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
+      - name: Vérifier cryptographiquement l’APK release
+        if: env.SIGNING_READY == 'true'
+        run: |
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk | tee release-signature.txt
+          grep -q "Verifies" release-signature.txt
+
       - name: Vérifier le contenu réel de l’APK
         run: |
           unzip -l app/build/outputs/apk/debug/app-debug.apk > apk-content.txt

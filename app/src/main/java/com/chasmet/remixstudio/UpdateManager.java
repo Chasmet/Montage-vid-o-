@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
 
 /** Checks the latest signed GitHub release without touching project storage. */
 final class UpdateManager {
-    private static final String API = "https://api.github.com/repos/Chasmet/Montage-vid-o-/releases/latest";
+    private static final String RELEASES_API = "https://api.github.com/repos/Chasmet/Montage-vid-o-/releases?per_page=20";
     private static final long MAX_APK_BYTES = 150L * 1024L * 1024L;
     private final MainActivity activity;
     private final WebView webView;
@@ -65,28 +65,71 @@ final class UpdateManager {
         emit("checking", "Recherche d’une nouvelle version…", "");
         worker.execute(() -> {
             try {
-                JSONObject release = new JSONObject(new String(fetch(API, 1024 * 1024), StandardCharsets.UTF_8));
-                String version = release.getString("tag_name").replaceFirst("^[vV]", "");
-                if (compare(version, BuildConfig.VERSION_NAME) <= 0) {
+                JSONArray releases = new JSONArray(new String(fetch(RELEASES_API, 2 * 1024 * 1024), StandardCharsets.UTF_8));
+                JSONObject release = findNewestSignedRelease(releases);
+                if (release == null) {
                     apkUrl = null;
-                    emit("current", "L’application est à jour.", version);
+                    hashUrl = null;
+                    emit("current", "Aucune mise à jour signée plus récente n’est publiée.", BuildConfig.VERSION_NAME);
                     return;
                 }
-                JSONArray assets = release.getJSONArray("assets");
-                String apk = null, hash = null;
-                for (int i = 0; i < assets.length(); i++) {
-                    JSONObject item = assets.getJSONObject(i);
-                    if ("RemixStudio.apk".equals(item.optString("name"))) apk = item.getString("browser_download_url");
-                    if ("RemixStudio.apk.sha256".equals(item.optString("name"))) hash = item.getString("browser_download_url");
+
+                String version = versionOf(release);
+                if (version == null || compare(version, BuildConfig.VERSION_NAME) <= 0) {
+                    apkUrl = null;
+                    hashUrl = null;
+                    emit("current", "L’application est à jour.", version == null ? BuildConfig.VERSION_NAME : version);
+                    return;
                 }
-                if (apk == null || hash == null) throw new IllegalStateException("APK signé ou empreinte absente de la Release.");
+
+                String apk = findAsset(release, "RemixStudio.apk");
+                String hash = findAsset(release, "RemixStudio.apk.sha256");
+                if (apk == null || hash == null)
+                    throw new IllegalStateException("APK signé ou empreinte absente de la Release.");
+
                 apkUrl = apk;
                 hashUrl = hash;
                 emit("available", "Version " + version + " disponible. Installer la mise à jour ?", version);
             } catch (Exception error) {
                 emit("error", "Vérification impossible : " + error.getMessage(), "");
-            } finally { busy = false; }
+            } finally {
+                busy = false;
+            }
         });
+    }
+
+    private static JSONObject findNewestSignedRelease(JSONArray releases) throws Exception {
+        JSONObject best = null;
+        String bestVersion = null;
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.optJSONObject(i);
+            if (release == null || release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
+            String version = versionOf(release);
+            if (version == null) continue;
+            if (findAsset(release, "RemixStudio.apk") == null || findAsset(release, "RemixStudio.apk.sha256") == null)
+                continue;
+            if (bestVersion == null || compare(version, bestVersion) > 0) {
+                best = release;
+                bestVersion = version;
+            }
+        }
+        return best;
+    }
+
+    private static String versionOf(JSONObject release) {
+        String tag = release.optString("tag_name", "").trim();
+        String version = tag.replaceFirst("^[vV]", "");
+        return version.matches("\\d+(\\.\\d+){1,3}") ? version : null;
+    }
+
+    private static String findAsset(JSONObject release, String name) {
+        JSONArray assets = release.optJSONArray("assets");
+        if (assets == null) return null;
+        for (int i = 0; i < assets.length(); i++) {
+            JSONObject item = assets.optJSONObject(i);
+            if (item != null && name.equals(item.optString("name"))) return item.optString("browser_download_url", null);
+        }
+        return null;
     }
 
     void downloadAndInstall() {

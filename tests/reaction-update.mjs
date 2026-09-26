@@ -5,6 +5,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const html = read('index.html');
 const reaction = read('js/reaction.js');
 const settings = read('js/app-settings.js');
+const bridge = read('js/android-bridge.js');
 const manager = read('app/src/main/java/com/chasmet/remixstudio/UpdateManager.java');
 const manifest = read('app/src/main/AndroidManifest.xml');
 const workflow = read('.github/workflows/build-apk.yml');
@@ -24,11 +25,11 @@ for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSou
 for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(video)',
   'createMediaStreamSource(cameraStream)', 'createMediaStreamDestination()', 'recorder.pause()',
   'recorder.resume()', 'video.pause(); recorder.pause()', 'video.currentTime', 'MediaRecorder.isTypeSupported',
-  "mimeType.startsWith('video/mp4')", 'facingMode: \'user\'']) {
+  "mimeType.startsWith('video/mp4')", 'facingMode: \'user\'', 'saveRemixBlobToAndroid', 'recorder.start(500)']) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
 
-for (const marker of ['releases/latest', 'RemixStudio.apk.sha256', 'SHA-256', 'validatePackage(target)',
+for (const marker of ['releases?per_page=20', 'findNewestSignedRelease', 'RemixStudio.apk.sha256', 'SHA-256', 'validatePackage(target)',
   'getPackageArchiveInfo', 'candidate.packageName', 'getApkContentsSigners', 'next <= current',
   'FileProvider.getUriForFile', 'canRequestPackageInstalls', 'REQUEST_INSTALL_PACKAGES']) {
   if (!(manager + manifest).includes(marker)) throw new Error(`Mise à jour non sécurisée : ${marker}`);
@@ -42,6 +43,8 @@ for (const marker of ['RELEASE_KEYSTORE_BASE64', 'SIGNING_READY', 'assembleRelea
 for (const asset of ['./js/reaction.js', './js/app-settings.js']) {
   if (!worker.includes(asset)) throw new Error(`Cache du nouvel onglet incomplet : ${asset}`);
 }
+if (!html.includes('<script src="js/android-bridge.js"></script>') || !bridge.includes('window.saveRemixBlobToAndroid = saveBlobToAndroid'))
+  throw new Error('Pont Android de sauvegarde Réaction non chargé de façon déterministe.');
 if (!settings.includes('window.Android.getAutoUpdate()') || !settings.includes('window.Android.installUpdate()'))
   throw new Error('Réglages Android non reliés au pont natif.');
 
