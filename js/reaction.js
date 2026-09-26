@@ -483,6 +483,7 @@
   // Its PCM is scheduled on the same AudioContext clock as the exported video mix.
   window.onNativeReactionAudio = (encoded, sampleRate) => {
     if (!nativeMicActive || !active() || !audio || !micInput || !encoded) return;
+    ensureAudioEngineRunning();
     const bytes = atob(encoded);
     const length = Math.floor(bytes.length / 2);
     if (!length) return;
