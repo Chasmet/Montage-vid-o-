@@ -1,4 +1,4 @@
-# Remix Studio 2.9
+# Remix Studio 3.0
 
 [![Construire APK Android](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml/badge.svg)](https://github.com/Chasmet/Montage-vid-o-/actions/workflows/build-apk.yml)
 
@@ -6,10 +6,18 @@ Application Android et web de montage vidéo mobile avec une timeline unique ins
 
 ## Télécharger l’APK Android
 
-- Dernière version : https://github.com/Chasmet/Montage-vid-o-/releases/tag/latest-apk
-- Téléchargement direct : https://github.com/Chasmet/Montage-vid-o-/releases/download/latest-apk/RemixStudio.apk
+- Dernière version signée : https://github.com/Chasmet/Montage-vid-o-/releases/latest
+- Si la signature release n’est pas configurée, l’APK debug est disponible dans les artefacts GitHub Actions.
 
-L’APK est reconstruit automatiquement après chaque modification de la branche `main`.
+L’APK est reconstruit automatiquement après chaque modification de la branche `main`. La publication d’une Release nécessite les quatre secrets GitHub `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` et `RELEASE_KEY_PASSWORD` (la même clé privée pour toutes les versions). Une installation existante ne peut conserver ses données lors d’une mise à jour que si les deux APK ont le même identifiant et la même signature. Ne publiez jamais la clé dans le dépôt.
+
+## Réaction / Split Screen
+
+Le troisième onglet importe une vidéo, filme la caméra frontale en haut et affiche la vidéo en bas sur un canevas vertical 9:16. Lecture, pause, déplacement dans la vidéo, volume, sourdine, zoom et repositionnement sont accessibles pendant l’enregistrement. Le bouton Pause suspend la prise et la lecture ensemble. L’export utilise l’encodeur du téléphone et sauvegarde en MP4 si disponible, sinon en WebM. Un casque évite le retour sonore dans le microphone.
+
+## Mises à jour Android
+
+Dans Réglages, activez la recherche automatique ou lancez une vérification manuelle. L’application vérifie `releases/latest`, télécharge l’APK signé et son SHA-256, contrôle l’identifiant et la signature de l’application, puis ouvre le programme d’installation Android. Android demande une confirmation. Le stockage des projets reste dans l’application tant que la signature est conservée et que l’installation se fait en mise à jour. Une ancienne installation debug signée avec une clé différente ne peut pas être mise à jour en place.
 
 ## Utilisation simplifiée
 

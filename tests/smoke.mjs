@@ -92,7 +92,7 @@ for (const marker of auditMarkers) {
   if (!files.audit.includes(marker)) throw new Error(`Protection finale manquante : ${marker}`);
 }
 if (files.audit.includes("const blobKey = 'source-video'")) throw new Error('Une clé fixe casserait encore l’annulation après un nouvel import.');
-for (const marker of ['remix-studio-v12-mode2-synchronise-2-9', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/mode2-sync.js', './js/export-watchdog.js']) {
+for (const marker of ['remix-studio-v13-reaction-updates-3-0', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/mode2-sync.js', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache final incomplet : ${marker}`);
 }
 
@@ -109,15 +109,14 @@ const gradle = readFileSync(nativeFiles[3], 'utf8');
 if (!cameraActivity.includes('VideoCapture<Recorder>') || !cameraActivity.includes('withAudioEnabled')) throw new Error('CameraX avec audio est incomplète.');
 if (!mainActivity.includes('WebViewAssetLoader') || !mainActivity.includes('beginDownload') || !mainActivity.includes('finishDownload')) throw new Error('Pont Android incomplet.');
 if (!manifest.includes('android:hardwareAccelerated="true"') || !manifest.includes('android.permission.RECORD_AUDIO')) throw new Error('Accélération matérielle ou micro manquant.');
-if (!gradle.includes("versionName '2.9.0'") || !gradle.includes('versionCode 12') || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.9.0 incomplète.');
+if (!gradle.includes("'3.0.0'") || !gradle.includes("'13'") || !gradle.includes("include 'js/**'")) throw new Error('Version APK 2.9.0 incomplète.');
 
 const workflowMarkers = [
   'Auditer la stabilité, les données et la fluidité', 'Tester l’insertion à la ligne blanche',
   'Tester le Mode 2 interview naturelle', 'Tester la synchronisation précise du Mode 2',
   'Tester la protection anti-blocage de l’export', 'assets/www/js/mode2-sync.js',
-  'Rejouer les tests de non-régression', 'Mode 2 synchronisé', 'mode2_synchronized',
-  'reaction_trompe_oeil', 'cursor_insertion', 'data_integrity_audited',
-  'project_self_repair', 'storage_guard', 'regression_tests_repeated'
+  'Rejouer les tests de non-régression', 'Tester la synchronisation précise du Mode 2',
+  'tests/reaction-update.mjs', 'SIGNING_READY', 'assembleRelease'
 ];
 for (const marker of workflowMarkers) if (!workflow.includes(marker)) throw new Error(`Validation CI finale manquante : ${marker}`);
 
