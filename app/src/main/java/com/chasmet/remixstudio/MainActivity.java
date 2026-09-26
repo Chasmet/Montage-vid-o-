@@ -45,11 +45,13 @@ public class MainActivity extends Activity {
     private static final int STORAGE_PERMISSION_REQUEST = 2003;
     private static final int NATIVE_CAMERA_PERMISSION_REQUEST = 2004;
     private static final int NATIVE_CAMERA_REQUEST = 2005;
+    private static final int REACTION_PERMISSION_REQUEST = 2006;
 
     private WebView webView;
     private UpdateManager updateManager;
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingWebPermission;
+    private boolean pendingReactionPermissionCallback = false;
     private Uri lastImportedVideoUri;
 
     private String pendingNativeOrientation = "vertical";
@@ -194,6 +196,24 @@ public class MainActivity extends Activity {
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private void requestReactionPermissions() {
+        if (nativeCameraPermissionsGranted()) {
+            notifyReactionPermissions(true);
+            return;
+        }
+        pendingReactionPermissionCallback = true;
+        requestPermissions(
+                new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO},
+                REACTION_PERMISSION_REQUEST
+        );
+    }
+
+    private void notifyReactionPermissions(boolean granted) {
+        if (webView == null) return;
+        String js = "window.onReactionPermissionsReady && window.onReactionPermissionsReady(" + granted + ");";
+        webView.evaluateJavascript(js, null);
+    }
+
     private void requestNativeCamera(String orientation, double referenceStartSeconds, boolean showReference) {
         pendingNativeOrientation = "horizontal".equals(orientation) ? "horizontal" : "vertical";
         pendingReferenceStartSeconds = Math.max(0.0, referenceStartSeconds);
@@ -251,6 +271,9 @@ public class MainActivity extends Activity {
         } else if (requestCode == NATIVE_CAMERA_PERMISSION_REQUEST) {
             if (granted) launchNativeCamera();
             else notifyNativeCameraError("Autorise la caméra et le microphone dans les réglages Android de Remix Studio.");
+        } else if (requestCode == REACTION_PERMISSION_REQUEST) {
+            pendingReactionPermissionCallback = false;
+            notifyReactionPermissions(granted);
         }
     }
 
@@ -357,6 +380,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean hasNativeCamera() {
             return true;
+        }
+
+        @JavascriptInterface
+        public void requestReactionPermissions() {
+            activity.runOnUiThread(activity::requestReactionPermissions);
         }
 
         @JavascriptInterface

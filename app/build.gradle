@@ -57,6 +57,7 @@ tasks.register('syncWebAssets', Sync) {
         include 'timeline-zoom.css'
         include 'manifest.webmanifest'
         include 'icon.svg'
+        include 'app-logo.webp'
         include 'service-worker.js'
         include 'sw.js'
         include 'js/**'

@@ -6,6 +6,7 @@ const html = read('index.html');
 const reaction = read('js/reaction.js');
 const settings = read('js/app-settings.js');
 const bridge = read('js/android-bridge.js');
+const appManifest = read('manifest.webmanifest');
 const manager = read('app/src/main/java/com/chasmet/remixstudio/UpdateManager.java');
 const manifest = read('app/src/main/AndroidManifest.xml');
 const workflow = read('.github/workflows/build-apk.yml');
@@ -19,15 +20,18 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 }
 
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
-  'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute', 'reactionBack', 'reactionForward',
-  'reactionRecord', 'reactionPause', 'reactionStop', 'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
+  'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionVideoHalf', 'reactionFitCover',
+  'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
+  'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
+  'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
   if (!html.includes(`id="${id}"`)) throw new Error(`Commande manquante : ${id}`);
 }
 
 for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(video)',
-  'createMediaStreamSource(cameraStream)', 'createMediaStreamDestination()', 'recorder.pause()',
-  'recorder.resume()', 'video.pause(); recorder.pause()', 'video.currentTime', 'MediaRecorder.isTypeSupported',
-  "mimeType.startsWith('video/mp4')", 'facingMode: \'user\'', 'saveRemixBlobToAndroid', 'recorder.start(500)']) {
+  'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
+  'video.currentTime', 'MediaRecorder.isTypeSupported', "mimeType.startsWith('video/mp4')",
+  "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
+  'requestReactionPermissions', "videoFit = 'cover'", "videoFit = 'contain'", 'waitForFirstFrame']) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
 
@@ -58,4 +62,11 @@ if (!init.includes("!window.isRemixStudioAndroid"))
 if (!html.includes('>⚙ Réglages</button>') || !html.includes('>● Réaction</button>'))
   throw new Error('Les entrées Réglages et Réaction doivent être visibles explicitement.');
 
-console.log('Réaction 9:16, mixage et circuit de mise à jour contrôlés.');
+if (!mainActivity.includes('REACTION_PERMISSION_REQUEST') || !mainActivity.includes('requestReactionPermissions()'))
+  throw new Error('Le bouton Réaction doit demander explicitement Caméra + Microphone à Android.');
+if (!manifest.includes('android:icon="@drawable/app_logo"') || !appManifest.includes('app-logo.webp'))
+  throw new Error('Le nouveau logo doit être intégré à Android et au manifeste web.');
+if (!html.includes('width="1080" height="1920"'))
+  throw new Error('Le rendu Réaction doit exporter en canvas vertical 1080x1920.');
+
+console.log('Réaction 9:16, aperçu 50/50, permissions, logo et mise à jour contrôlés.');

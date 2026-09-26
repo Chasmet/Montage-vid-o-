@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07090d" />
   <meta name="description" content="Montage vidéo mobile sur une timeline unique façon CapCut." />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="app-logo.webp" type="image/webp" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="preview.css" />
   <link rel="stylesheet" href="timeline-zoom.css" />
@@ -17,7 +17,7 @@
     <header class="topbar">
       <button id="closeWorkspaceBtn" class="top-icon" type="button" aria-label="Fermer">×</button>
       <div class="brand-block">
-        <strong><span class="brand-mark">▶</span> Remix Studio</strong>
+        <strong><img class="brand-logo" src="app-logo.webp" alt="" /> Remix Studio</strong>
         <span id="saveStatus">Sauvegardé</span>
       </div>
       <div class="top-actions">
@@ -94,8 +94,17 @@
 
     <section id="reactionPanel" class="reaction-panel hidden" aria-label="Réaction et écran partagé">
       <div class="reaction-heading"><strong>Réaction / Split Screen</strong><small>Caméra en haut · vidéo en bas · 9:16</small></div>
-      <div class="reaction-stage">
-        <canvas id="reactionCanvas" width="720" height="1280" aria-label="Aperçu de la réaction"></canvas>
+      <div class="reaction-stage" aria-label="Aperçu de la réaction">
+        <div class="reaction-half reaction-camera-half">
+          <video id="reactionCameraVideo" playsinline autoplay muted></video>
+          <div id="reactionCameraPlaceholder" class="reaction-placeholder"><strong>Caméra frontale</strong><small>Appuie sur « Activer la caméra »</small></div>
+        </div>
+        <div id="reactionVideoHalf" class="reaction-half reaction-video-half">
+          <video id="reactionSource" playsinline preload="auto"></video>
+          <div id="reactionVideoPlaceholder" class="reaction-placeholder"><strong>Vidéo à commenter</strong><small>Importe une vidéo</small></div>
+        </div>
+        <div class="reaction-divider" aria-hidden="true"></div>
+        <canvas id="reactionCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
       </div>
       <label class="reaction-import" for="reactionInput">＋ Importer la vidéo à commenter</label>
       <input id="reactionInput" type="file" accept="video/*" hidden />
@@ -110,16 +119,19 @@
         <label>Zoom vidéo <input id="reactionZoom" type="range" min="100" max="250" value="100" /></label>
         <button id="reactionMute" type="button" aria-pressed="false">🔊 Couper</button>
       </div>
+      <div class="reaction-fit-controls">
+        <button id="reactionFitCover" class="active" type="button">Remplir la moitié</button>
+        <button id="reactionFitContain" type="button">Voir toute la vidéo</button>
+        <button id="reactionReset" type="button">Recentrer</button>
+      </div>
       <small class="reaction-hint">Glisse la vidéo dans l’aperçu pour la repositionner. Un casque évite l’écho du micro.</small>
       <div class="reaction-controls">
-        <button id="reactionCamera" type="button">Activer la caméra</button>
+        <button id="reactionCamera" type="button">📷 Activer la caméra frontale</button>
         <button id="reactionRecord" class="record" type="button" disabled>● Enregistrer</button>
         <button id="reactionPause" type="button" disabled>⏸ Pause</button>
         <button id="reactionStop" type="button" disabled>■ Exporter</button>
       </div>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
-      <video id="reactionSource" playsinline preload="metadata" class="hidden"></video>
-      <video id="reactionCameraVideo" playsinline autoplay muted class="hidden"></video>
     </section>
 
     <section id="appSettings" class="bottom-sheet hidden" aria-label="Réglages de l’application">
