@@ -314,7 +314,16 @@
   }
 
   $('reactionInput').addEventListener('change', (event) => importVideo(event.target.files?.[0]));
+  $('reactionCameraPlaceholder').addEventListener('click', startCamera);
+  $('reactionVideoPlaceholder').addEventListener('click', () => {
+    if (!fileUrl && !active()) $('reactionInput').click();
+  });
   $('reactionCamera').addEventListener('click', startCamera);
+  $('reactionCameraQuick').addEventListener('click', (event) => { event.stopPropagation(); startCamera(); });
+  $('reactionImportQuick').addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!active()) $('reactionInput').click();
+  });
   $('reactionRecord').addEventListener('click', startRecording);
   $('reactionPause').addEventListener('click', pauseRecording);
   $('reactionStop').addEventListener('click', stopRecording);

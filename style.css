@@ -564,10 +564,14 @@ progress{width:100%;height:12px;accent-color:var(--cyan)}
 .reaction-half video{display:block;width:100%;height:100%;object-fit:cover;background:#070a10}
 .reaction-camera-half video{transform:scaleX(-1)}
 .reaction-video-half video{will-change:transform;transform-origin:center center}
-.reaction-placeholder{position:absolute;inset:0;display:grid;place-content:center;gap:6px;text-align:center;padding:24px;background:linear-gradient(145deg,#111724,#090c13);color:#dfe7f5;pointer-events:none}
-.reaction-placeholder small{font-size:.72rem;color:var(--muted)}
+.reaction-placeholder{position:absolute;inset:0;display:grid;place-content:center;gap:6px;text-align:center;padding:24px;background:linear-gradient(145deg,#111724,#090c13);color:#dfe7f5}
+.reaction-half-action{width:100%;height:100%;border:0;border-radius:0;font:inherit;cursor:pointer;touch-action:manipulation}
+.reaction-half-action:active{background:linear-gradient(145deg,#16233a,#0b1321);color:var(--cyan)}
+.reaction-placeholder strong{font-size:1rem}.reaction-placeholder small{font-size:.72rem;color:var(--muted)}
 .reaction-placeholder.hidden{display:none}
 .reaction-divider{position:absolute;left:0;right:0;top:50%;height:2px;transform:translateY(-1px);background:rgba(255,255,255,.9);z-index:4;pointer-events:none}
+.reaction-quick{position:absolute;right:8px;z-index:6;border:1px solid rgba(255,255,255,.28);border-radius:999px;background:rgba(5,8,14,.78);color:#fff;padding:7px 10px;font-size:.7rem;font-weight:800;backdrop-filter:blur(8px)}
+.reaction-quick-top{top:8px}.reaction-quick-bottom{top:calc(50% + 8px)}
 #reactionCanvas{position:fixed;left:-200vw;top:0;width:2px;height:2px;opacity:.001;pointer-events:none}
 .reaction-import,.reaction-controls button,.reaction-sliders button,.reaction-fit-controls button,#checkUpdateBtn{padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);color:white;text-align:center;font-weight:700}
 .reaction-import{background:var(--cyan);color:#001318}.reaction-controls{display:flex;gap:7px}.reaction-controls button{flex:1}.reaction-controls .record{background:#e64055}
@@ -634,3 +638,5 @@ progress{width:100%;height:12px;accent-color:var(--cyan)}
 }
 
 .brand-logo{width:22px;height:22px;border-radius:6px;object-fit:cover;box-shadow:0 0 12px rgba(51,214,255,.2)}
+
+.reaction-panel{min-height:calc(100dvh - 110px);overflow:visible}

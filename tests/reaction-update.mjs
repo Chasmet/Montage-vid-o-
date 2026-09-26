@@ -20,7 +20,7 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 }
 
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
-  'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionVideoHalf', 'reactionFitCover',
+  'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick', 'reactionVideoHalf', 'reactionFitCover',
   'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
   'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
@@ -31,7 +31,9 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
   'video.currentTime', 'MediaRecorder.isTypeSupported', "mimeType.startsWith('video/mp4')",
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
-  'requestReactionPermissions', "videoFit = 'cover'", "videoFit = 'contain'", 'waitForFirstFrame']) {
+  'requestReactionPermissions', "videoFit = 'cover'", "videoFit = 'contain'", 'waitForFirstFrame',
+  "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
+  "$('reactionVideoPlaceholder').addEventListener('click'"]) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
 

@@ -97,13 +97,15 @@
       <div class="reaction-stage" aria-label="Aperçu de la réaction">
         <div class="reaction-half reaction-camera-half">
           <video id="reactionCameraVideo" playsinline autoplay muted></video>
-          <div id="reactionCameraPlaceholder" class="reaction-placeholder"><strong>Caméra frontale</strong><small>Appuie sur « Activer la caméra »</small></div>
+          <button id="reactionCameraPlaceholder" class="reaction-placeholder reaction-half-action" type="button"><strong>📷 Caméra frontale</strong><small>Touche ici pour activer la caméra</small></button>
         </div>
         <div id="reactionVideoHalf" class="reaction-half reaction-video-half">
           <video id="reactionSource" playsinline preload="auto"></video>
-          <div id="reactionVideoPlaceholder" class="reaction-placeholder"><strong>Vidéo à commenter</strong><small>Importe une vidéo</small></div>
+          <button id="reactionVideoPlaceholder" class="reaction-placeholder reaction-half-action" type="button"><strong>＋ Vidéo à commenter</strong><small>Touche ici pour choisir une vidéo</small></button>
         </div>
         <div class="reaction-divider" aria-hidden="true"></div>
+        <button id="reactionCameraQuick" class="reaction-quick reaction-quick-top" type="button">📷 Caméra</button>
+        <button id="reactionImportQuick" class="reaction-quick reaction-quick-bottom" type="button">＋ Vidéo</button>
         <canvas id="reactionCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
       </div>
       <label class="reaction-import" for="reactionInput">＋ Importer la vidéo à commenter</label>
