@@ -22,11 +22,11 @@ for (const marker of ['loadExportWatchdog', 'js/export-watchdog.js', 'remixExpor
   if (!init.includes(marker)) throw new Error(`Chargement du correctif incomplet : ${marker}`);
 }
 
-for (const marker of ['remix-studio-v12-mode2-synchronise-2-9', './js/export-watchdog.js']) {
+for (const marker of ['remix-studio-v13-reaction-updates-3-0', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache du correctif incomplet : ${marker}`);
 }
 
-if (!gradle.includes("versionName '2.9.0'") || !gradle.includes('versionCode 12')) {
+if (!gradle.includes("'3.0.0'") || !gradle.includes("'13'")) {
   throw new Error('La version APK 2.9.0 n’est pas configurée.');
 }
 

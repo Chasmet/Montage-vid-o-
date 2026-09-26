@@ -21,6 +21,7 @@
         <span id="saveStatus">Sauvegardé</span>
       </div>
       <div class="top-actions">
+        <button id="settingsBtn" class="top-settings" type="button" aria-label="Réglages">⚙</button>
         <span class="quality-badge">1080p</span>
         <button id="exportBtn" class="export-btn" type="button">Exporter</button>
       </div>
@@ -91,6 +92,47 @@
       </section>
     </main>
 
+    <section id="reactionPanel" class="reaction-panel hidden" aria-label="Réaction et écran partagé">
+      <div class="reaction-heading"><strong>Réaction / Split Screen</strong><small>Caméra en haut · vidéo en bas · 9:16</small></div>
+      <div class="reaction-stage">
+        <canvas id="reactionCanvas" width="720" height="1280" aria-label="Aperçu de la réaction"></canvas>
+      </div>
+      <label class="reaction-import" for="reactionInput">＋ Importer la vidéo à commenter</label>
+      <input id="reactionInput" type="file" accept="video/*" hidden />
+      <div class="reaction-controls">
+        <button id="reactionBack" type="button" aria-label="Reculer de cinq secondes">−5 s</button>
+        <button id="reactionPlay" type="button">▶ Lire</button>
+        <button id="reactionForward" type="button" aria-label="Avancer de cinq secondes">+5 s</button>
+      </div>
+      <label class="reaction-timeline"><span id="reactionTime">00:00 / 00:00</span><input id="reactionSeek" type="range" min="0" max="1000" value="0" aria-label="Position de la vidéo" /></label>
+      <div class="reaction-sliders">
+        <label>Son vidéo <input id="reactionVolume" type="range" min="0" max="100" value="65" /></label>
+        <label>Zoom vidéo <input id="reactionZoom" type="range" min="100" max="250" value="100" /></label>
+        <button id="reactionMute" type="button" aria-pressed="false">🔊 Couper</button>
+      </div>
+      <small class="reaction-hint">Glisse la vidéo dans l’aperçu pour la repositionner. Un casque évite l’écho du micro.</small>
+      <div class="reaction-controls">
+        <button id="reactionCamera" type="button">Activer la caméra</button>
+        <button id="reactionRecord" class="record" type="button" disabled>● Enregistrer</button>
+        <button id="reactionPause" type="button" disabled>⏸ Pause</button>
+        <button id="reactionStop" type="button" disabled>■ Exporter</button>
+      </div>
+      <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
+      <video id="reactionSource" playsinline preload="metadata" class="hidden"></video>
+      <video id="reactionCameraVideo" playsinline autoplay muted class="hidden"></video>
+    </section>
+
+    <section id="appSettings" class="bottom-sheet hidden" aria-label="Réglages de l’application">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row"><div><strong>Réglages</strong><small id="appVersion">Version web</small></div><button id="closeSettings" class="sheet-close" type="button">×</button></div>
+      <div class="settings-grid">
+        <label class="toggle-row"><input id="autoUpdateToggle" type="checkbox" /><span>Mise à jour automatique</span></label>
+        <small>Recherche une nouvelle version au démarrage. Android demande ton accord avant l’installation.</small>
+        <button id="checkUpdateBtn" type="button">Vérifier maintenant</button>
+        <p id="updateStatus" role="status"></p>
+      </div>
+    </section>
+
     <section id="volumeSheet" class="bottom-sheet hidden" aria-label="Réglages du clip">
       <div class="sheet-handle"></div>
       <div class="sheet-title-row">
@@ -148,13 +190,19 @@
       </div>
     </section>
 
-    <nav class="bottom-dock" aria-label="Outils de montage">
+    <nav id="editorDock" class="bottom-dock" aria-label="Outils de montage">
       <button id="splitBtn" class="dock-btn" type="button"><span>][</span><small>Diviser</small></button>
       <button id="volumeToolBtn" class="dock-btn" type="button"><span>🔊</span><small>Volume</small></button>
       <button id="rotateBtn" class="dock-btn" type="button"><span>↻</span><small>Tourner</small></button>
       <button id="duplicateBtn" class="dock-btn" type="button"><span>▣</span><small>Dupliquer</small></button>
       <button id="deleteClipBtn" class="dock-btn danger" type="button"><span>⌫</span><small>Supprimer</small></button>
       <button id="projectToolBtn" class="dock-btn" type="button"><span>⚙</span><small>Projet</small></button>
+    </nav>
+
+    <nav class="mode-tabs" aria-label="Modes de l’application">
+      <button id="editorTab" class="active" type="button">Montage</button>
+      <button id="interviewTab" type="button">Interview</button>
+      <button id="reactionTab" type="button">Réaction / Split Screen</button>
     </nav>
 
     <input id="videoInput" type="file" accept="video/*" hidden />
@@ -171,5 +219,7 @@
   <script src="js/timeline-zoom.js"></script>
   <script src="js/init.js"></script>
   <script src="js/capcut-ui.js"></script>
+  <script src="js/reaction.js"></script>
+  <script src="js/app-settings.js"></script>
 </body>
 </html>

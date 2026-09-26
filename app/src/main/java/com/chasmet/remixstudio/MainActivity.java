@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
     private static final int NATIVE_CAMERA_REQUEST = 2005;
 
     private WebView webView;
+    private UpdateManager updateManager;
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingWebPermission;
     private Uri lastImportedVideoUri;
@@ -70,6 +71,7 @@ public class MainActivity extends Activity {
         setContentView(webView);
 
         configureWebView();
+        updateManager = new UpdateManager(this, webView);
         requestLegacyStoragePermissionIfNeeded();
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
     }
@@ -304,6 +306,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (updateManager != null) updateManager.onResume();
+    }
+
+    @Override
     protected void onDestroy() {
         if (webView != null) {
             webView.removeJavascriptInterface("Android");
@@ -319,6 +327,31 @@ public class MainActivity extends Activity {
 
         AndroidBridge(MainActivity activity) {
             this.activity = activity;
+        }
+
+        @JavascriptInterface
+        public String getAppVersion() {
+            return BuildConfig.VERSION_NAME;
+        }
+
+        @JavascriptInterface
+        public boolean getAutoUpdate() {
+            return activity.updateManager.isAutoEnabled();
+        }
+
+        @JavascriptInterface
+        public void setAutoUpdate(boolean enabled) {
+            activity.updateManager.setAutoEnabled(enabled);
+        }
+
+        @JavascriptInterface
+        public void checkForUpdate() {
+            activity.updateManager.check();
+        }
+
+        @JavascriptInterface
+        public void installUpdate() {
+            activity.updateManager.downloadAndInstall();
         }
 
         @JavascriptInterface
