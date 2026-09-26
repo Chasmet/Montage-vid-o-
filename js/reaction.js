@@ -20,7 +20,7 @@
   let outputLayout = 'vertical';
   let outputFraming = 'clean';
   let sourceAspect = 9 / 16;
-  let cameraFit = 'cover', videoFit = 'contain';
+  let cameraFit = 'contain', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
@@ -151,7 +151,7 @@
     $('reactionFramingFree').classList.toggle('active', outputFraming === 'free');
 
     if (outputFraming === 'clean') {
-      cameraFit = 'cover';
+      cameraFit = 'contain';
       videoFit = 'contain';
       cameraPanX = cameraPanY = videoPanX = videoPanY = 0;
       $('reactionCameraZoom').value = '100';
@@ -202,6 +202,10 @@
 
     camera.style.objectFit = cameraFit;
     camera.style.transform = `translate3d(${cameraPanX}%, ${cameraPanY}%, 0) scaleX(-1) scale(${cameraZoom})`;
+    $('reactionCameraZoomValue').textContent = `${cameraZoom.toFixed(1).replace('.', ',')}×`;
+    for (const button of document.querySelectorAll('[data-reaction-camera-zoom]')) {
+      button.classList.toggle('active', Number(button.dataset.reactionCameraZoom) === Math.round(cameraZoom * 100));
+    }
 
     video.style.objectFit = videoFit;
     video.style.transform = `translate3d(${videoPanX}%, ${videoPanY}%, 0) scale(${videoZoom})`;
@@ -337,12 +341,15 @@
       }
       if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
 
+      // A 9:16 camera constraint can crop the sensor before CSS or the canvas
+      // sees it. Capture the usual full 4:3 sensor image, then fit it in the
+      // chosen reaction frame without throwing away the sides.
       const portrait = sourceAspect <= 1;
       const videoConstraints = {
         facingMode: { ideal: 'user' },
-        width: { ideal: portrait ? 1080 : 1920 },
-        height: { ideal: portrait ? 1920 : 1080 },
-        aspectRatio: { ideal: sourceAspect }
+        width: { ideal: portrait ? 960 : 1280 },
+        height: { ideal: portrait ? 1280 : 960 },
+        aspectRatio: { ideal: portrait ? 3 / 4 : 4 / 3 }
       };
 
       try {
@@ -352,7 +359,7 @@
         });
       } catch (_) {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'user' }, aspectRatio: { ideal: sourceAspect } },
+          video: { facingMode: { ideal: 'user' } },
           audio: false
         });
       }
@@ -360,7 +367,7 @@
       camera.srcObject = cameraStream;
       await camera.play();
       cameraPanX = cameraPanY = 0;
-      cameraFit = 'cover';
+      cameraFit = 'contain';
       $('reactionCameraZoom').value = '100';
       syncSharedPreviewFrameSize();
       syncPreviewTransforms();
@@ -871,6 +878,13 @@
   $('reactionVolume').addEventListener('input', setVolume);
   $('reactionMicGain').addEventListener('input', () => updateMicPriority());
   $('reactionCameraZoom').addEventListener('input', syncPreviewTransforms);
+  for (const button of document.querySelectorAll('[data-reaction-camera-zoom]')) {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      $('reactionCameraZoom').value = button.dataset.reactionCameraZoom;
+      syncPreviewTransforms();
+    });
+  }
   $('reactionZoom').addEventListener('input', syncPreviewTransforms);
 
   $('reactionMute').addEventListener('click', () => {

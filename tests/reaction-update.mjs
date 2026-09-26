@@ -41,7 +41,7 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'outputFrameForSlot', 'syncSharedPreviewFrameSize',
   "setOutputLayout('horizontal')", "setOutputLayout('vertical')", 'canvas.width = horizontal ? 1920 : 1080',
   'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraFrame, 'camera')", "bindDrag(videoFrame, 'video')",
-  'aspectRatio: { ideal: sourceAspect }', 'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
+  'aspectRatio: { ideal: portrait ? 3 / 4 : 4 / 3 }', 'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
   "$('reactionVideoPlaceholder').addEventListener('click'"]) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
@@ -157,6 +157,36 @@ vm.runInContext('updateMicPriority()', context);
 assert.equal(gain.value, 0, 'Reprendre la vidéo doit recouper le micro.');
 assert.equal(gain.lastAction, 'set', 'La coupure du micro doit être immédiate, sans chevauchement audible.');
 
+// The wide sensor picture must reach both preview and recorded canvas without
+// the old 9:16 sensor crop or a second 9:16 cover crop.
+assert.ok(reaction.includes("let cameraFit = 'contain', videoFit = 'contain'"));
+assert.ok(reaction.includes("cameraFit = 'contain';\n      $('reactionCameraZoom').value = '100'"));
+assert.ok(reaction.includes("video: { facingMode: { ideal: 'user' } }"));
+for (const zoom of [80, 100, 150]) assert.ok(html.includes(`data-reaction-camera-zoom="${zoom}"`));
+const drawStart = reaction.indexOf('  function drawForegroundInSharedFrame(');
+const drawEnd = reaction.indexOf('  function draw()', drawStart);
+assert.ok(drawStart >= 0 && drawEnd > drawStart);
+const draws = [];
+const drawingContext = vm.createContext({
+  ctx: {
+    save() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, restore() {},
+    translate() {}, scale() {}, drawImage(_element, x, y, width, height) {
+      draws.push({ x, y, width, height });
+    }
+  }
+});
+vm.runInContext(reaction.slice(reaction.indexOf('  function drawImageInRegion('), reaction.indexOf('  function drawRegion(')) +
+  reaction.slice(drawStart, drawEnd), drawingContext);
+const frame = { x: 0, y: 0, w: 540, h: 960 };
+const sensor = { readyState: 4, videoWidth: 960, videoHeight: 1280 };
+vm.runInContext('drawForegroundInSharedFrame(sensor, frame, 1, 0, 0, "contain")',
+  vm.createContext({ ...drawingContext, sensor, frame }));
+assert.equal(draws.at(-1).width, 540);
+assert.equal(draws.at(-1).height, 720, 'La caméra 4:3 doit rester entière dans le cadre 9:16.');
+vm.runInContext('drawForegroundInSharedFrame(sensor, frame, 0.8, 0, 0, "contain")',
+  vm.createContext({ ...drawingContext, sensor, frame }));
+assert.equal(draws.at(-1).width, 432, 'Le bouton 0,8× doit réduire le cadrage enregistré.');
+
 
 
 if (!html.includes('sources complètes 9:16 / 19:9') ||
@@ -170,4 +200,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction audio : micro dédié indépendant, moteur audio maintenu pendant pause, voix renforcée et MP4 direct contrôlés.');
+console.log('Réaction validée : cadrage caméra large, zoom sur aperçu et export, audio alterné et MP4 direct.');
