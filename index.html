@@ -139,8 +139,8 @@
           <div class="reaction-source-title"><strong>Caméra</strong><span>même cadre que la vidéo</span></div>
           <label>Zoom <input id="reactionCameraZoom" type="range" min="100" max="250" value="100" /></label>
           <div class="reaction-fit-controls">
-            <button id="reactionCameraFitContain" type="button">Entière</button>
-            <button id="reactionCameraFitCover" class="active" type="button">Remplir</button>
+            <button id="reactionCameraFitContain" class="active" type="button">Entière</button>
+            <button id="reactionCameraFitCover" type="button">Remplir</button>
             <button id="reactionCameraReset" type="button">Recentrer</button>
           </div>
         </div>
@@ -154,7 +154,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">La vidéo importée définit le cadre. La caméra prend exactement la même dimension. Glisse chaque image pour la repositionner.</small>
+      <small class="reaction-hint">Par défaut, caméra et vidéo restent entièrement visibles. Les espaces libres sont remplis avec un arrière-plan flouté, sans couper l’image.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 

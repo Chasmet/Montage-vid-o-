@@ -34,7 +34,7 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
   'video.currentTime', 'MediaRecorder.isTypeSupported',
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
-  'requestReactionPermissions', "cameraFit = 'cover'", "videoFit = 'contain'", "videoFit = 'cover'",
+  'requestReactionPermissions', "cameraFit = 'contain'", "videoFit = 'contain'", "videoFit = 'cover'",
   'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'syncSharedPreviewFrameSize',
   "setOutputLayout('horizontal')", "setOutputLayout('vertical')", 'canvas.width = horizontal ? 1920 : 1080',
   'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraFrame, 'camera')", "bindDrag(videoFrame, 'video')",
@@ -83,8 +83,11 @@ if (!reaction.includes("outputLayout === 'horizontal'") ||
     !reaction.includes("camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height }") ||
     !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
   throw new Error('L’export 16:9 doit remplir le canvas avec deux moitiés strictement identiques.');
-if (!reaction.includes("'cover',\n      true") || !reaction.includes("'cover',\n      false"))
-  throw new Error('L’export doit forcer le remplissage plein écran des deux sources.');
+if (!reaction.includes('ctx.filter = \'blur(32px) brightness(0.55) saturate(0.9)\'') ||
+    !reaction.includes('const foregroundScale = Math.min(w / element.videoWidth, h / element.videoHeight) * zoom') ||
+    !reaction.includes('cameraFit,\n      true') ||
+    !reaction.includes('videoFit,\n      false'))
+  throw new Error('L’export doit garder les deux images entières et remplir le fond avec une copie floutée.');
 if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
   throw new Error('L’export Réaction doit être MP4 direct sans fallback WebM.');
 
@@ -99,4 +102,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction corrigée : sortie plein écran sans bandes noires, MP4 direct, deux moitiés identiques et mise à jour signée contrôlées.');
+console.log('Réaction corrigée : image entière sans zoom forcé, fond flouté sans bandes noires, MP4 direct et mise à jour signée contrôlés.');

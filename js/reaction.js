@@ -18,7 +18,7 @@
   let requestingCamera = false;
   let outputLayout = 'vertical';
   let sourceAspect = 9 / 16;
-  let cameraFit = 'cover', videoFit = 'contain';
+  let cameraFit = 'contain', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
@@ -69,6 +69,19 @@
     };
   }
 
+  function drawImageInRegion(element, region, scale, panX, panY, mirror = false) {
+    const { x, y, w, h } = region;
+    const dw = element.videoWidth * scale;
+    const dh = element.videoHeight * scale;
+    if (mirror) {
+      ctx.translate(x + w, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(element, (w - dw) / 2 - panX, y + (h - dh) / 2 + panY, dw, dh);
+    } else {
+      ctx.drawImage(element, x + (w - dw) / 2 + panX, y + (h - dh) / 2 + panY, dw, dh);
+    }
+  }
+
   function drawRegion(element, region, zoom, panXPercent, panYPercent, fit, mirror = false) {
     const { x, y, w, h } = region;
     ctx.save();
@@ -79,21 +92,23 @@
     ctx.fillRect(x, y, w, h);
 
     if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
-      const fitScale = fit === 'contain'
-        ? Math.min(w / element.videoWidth, h / element.videoHeight)
-        : Math.max(w / element.videoWidth, h / element.videoHeight);
-      const scale = fitScale * zoom;
-      const dw = element.videoWidth * scale;
-      const dh = element.videoHeight * scale;
       const panX = panXPercent / 100 * w;
       const panY = panYPercent / 100 * h;
 
-      if (mirror) {
-        ctx.translate(x + w, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(element, (w - dw) / 2 - panX, y + (h - dh) / 2 + panY, dw, dh);
+      if (fit === 'contain') {
+        // Fill unused space with a blurred duplicate, while keeping the real source 100% visible.
+        const backgroundScale = Math.max(w / element.videoWidth, h / element.videoHeight) * 1.08;
+        ctx.save();
+        ctx.filter = 'blur(32px) brightness(0.55) saturate(0.9)';
+        ctx.globalAlpha = 0.9;
+        drawImageInRegion(element, region, backgroundScale, 0, 0, mirror);
+        ctx.restore();
+
+        const foregroundScale = Math.min(w / element.videoWidth, h / element.videoHeight) * zoom;
+        drawImageInRegion(element, region, foregroundScale, panX, panY, mirror);
       } else {
-        ctx.drawImage(element, x + (w - dw) / 2 + panX, y + (h - dh) / 2 + panY, dw, dh);
+        const coverScale = Math.max(w / element.videoWidth, h / element.videoHeight) * zoom;
+        drawImageInRegion(element, region, coverScale, panX, panY, mirror);
       }
     }
     ctx.restore();
@@ -175,7 +190,7 @@
       Number($('reactionCameraZoom').value) / 100,
       cameraPanX,
       cameraPanY,
-      'cover',
+      cameraFit,
       true
     );
     drawRegion(
@@ -184,7 +199,7 @@
       Number($('reactionZoom').value) / 100,
       videoPanX,
       videoPanY,
-      'cover',
+      videoFit,
       false
     );
 
@@ -284,7 +299,7 @@
       camera.srcObject = cameraStream;
       await camera.play();
       cameraPanX = cameraPanY = 0;
-      cameraFit = 'cover';
+      cameraFit = 'contain';
       $('reactionCameraZoom').value = '100';
       syncSharedPreviewFrameSize();
       syncPreviewTransforms();
@@ -417,7 +432,7 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · plein écran MP4 · deux moitiés identiques.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · image entière · fond flouté · MP4.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
