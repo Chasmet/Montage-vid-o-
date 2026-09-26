@@ -20,8 +20,10 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 }
 
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
-  'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick', 'reactionVideoHalf', 'reactionFitCover',
-  'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
+  'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick',
+  'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionOutputVertical', 'reactionOutputHorizontal',
+  'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
+  'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
   'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
   if (!html.includes(`id="${id}"`)) throw new Error(`Commande manquante : ${id}`);
@@ -31,8 +33,10 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
   'video.currentTime', 'MediaRecorder.isTypeSupported', "mimeType.startsWith('video/mp4')",
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
-  'requestReactionPermissions', "videoFit = 'cover'", "videoFit = 'contain'", 'waitForFirstFrame',
-  "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
+  'requestReactionPermissions', "cameraFit = 'contain'", "videoFit = 'contain'", "videoFit = 'cover'",
+  "setOutputLayout('horizontal')", "setOutputLayout('vertical')", 'canvas.width = horizontal ? 1920 : 1080',
+  'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraHalf, 'camera')", "bindDrag(videoHalf, 'video')",
+  'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
   "$('reactionVideoPlaceholder').addEventListener('click'"]) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
@@ -72,7 +76,14 @@ if (!manifest.includes('android:icon="@drawable/app_logo"') || !appManifest.incl
 if (!html.includes('reaction-record-controls') || !html.includes('>● REC</button>'))
   throw new Error('Les commandes d’enregistrement doivent être immédiatement sous l’aperçu.');
 if (!html.includes('width="1080" height="1920"'))
-  throw new Error('Le rendu Réaction doit exporter en canvas vertical 1080x1920.');
+  throw new Error('Le canvas Réaction doit démarrer en 1080x1920.');
+if (!reaction.includes("outputLayout === 'horizontal'") ||
+    !reaction.includes("camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height }") ||
+    !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
+  throw new Error('Le mode 16:9 côte à côte doit être réellement rendu dans le canvas.');
+if (!html.includes('sources complètes 9:16 / 19:9') ||
+    !html.includes('9:16 vertical') || !html.includes('16:9 horizontal'))
+  throw new Error('Le choix de format final et le respect des formats source doivent être visibles.');
 
 if (!read('style.css').includes('height:clamp(250px,42dvh,320px)'))
   throw new Error('L’aperçu Réaction doit être compact sur téléphone.');
@@ -80,4 +91,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction compacte, aperçu 50/50, signature permanente et mise à jour automatique contrôlés.');
+console.log('Réaction dual-screen complète, sorties 9:16/16:9, cadrages indépendants et mise à jour signée contrôlés.');

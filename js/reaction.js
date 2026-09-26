@@ -1,16 +1,22 @@
-/* Vertical live reaction: reliable DOM preview + offscreen export canvas. */
+/* Reaction / Split Screen: full-source dual view, vertical or horizontal output. */
 (() => {
   'use strict';
+
   const $ = (id) => document.getElementById(id);
   const video = $('reactionSource');
   const camera = $('reactionCameraVideo');
+  const stage = $('reactionStage');
   const videoHalf = $('reactionVideoHalf');
+  const cameraHalf = $('reactionCameraHalf');
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
   let fileUrl, cameraStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, mix;
-  let visible = false, recordingPaused = false, frameId = 0, offsetX = 0, offsetY = 0, drag = null;
-  let mute = false, videoFit = 'cover', requestingCamera = false;
+  let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
+  let requestingCamera = false;
+  let outputLayout = 'vertical';
+  let cameraFit = 'contain', videoFit = 'contain';
+  let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
   const format = (time) => `${String(Math.floor((time || 0) / 60)).padStart(2, '0')}:${String(Math.floor((time || 0) % 60)).padStart(2, '0')}`;
@@ -31,42 +37,107 @@
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  function drawHalf(element, top, zoom = 1, panX = 0, panY = 0, fit = 'cover') {
-    const width = canvas.width;
-    const height = canvas.height / 2;
+  function regions() {
+    if (outputLayout === 'horizontal') {
+      return {
+        camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height },
+        video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }
+      };
+    }
+    return {
+      camera: { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 },
+      video: { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 }
+    };
+  }
+
+  function drawRegion(element, region, zoom, panXPercent, panYPercent, fit, mirror = false) {
+    const { x, y, w, h } = region;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, top, width, height);
+    ctx.rect(x, y, w, h);
     ctx.clip();
     ctx.fillStyle = '#05070c';
-    ctx.fillRect(0, top, width, height);
+    ctx.fillRect(x, y, w, h);
 
     if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
       const fitScale = fit === 'contain'
-        ? Math.min(width / element.videoWidth, height / element.videoHeight)
-        : Math.max(width / element.videoWidth, height / element.videoHeight);
+        ? Math.min(w / element.videoWidth, h / element.videoHeight)
+        : Math.max(w / element.videoWidth, h / element.videoHeight);
       const scale = fitScale * zoom;
-      const w = element.videoWidth * scale;
-      const h = element.videoHeight * scale;
-      ctx.drawImage(element, (width - w) / 2 + panX, top + (height - h) / 2 + panY, w, h);
+      const dw = element.videoWidth * scale;
+      const dh = element.videoHeight * scale;
+      const panX = panXPercent / 100 * w;
+      const panY = panYPercent / 100 * h;
+
+      if (mirror) {
+        ctx.translate(x + w, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(element, (w - dw) / 2 - panX, y + (h - dh) / 2 + panY, dw, dh);
+      } else {
+        ctx.drawImage(element, x + (w - dw) / 2 + panX, y + (h - dh) / 2 + panY, dw, dh);
+      }
     }
     ctx.restore();
   }
 
-  function syncPreviewTransform() {
-    const zoom = Number($('reactionZoom').value) / 100;
-    const panX = offsetX / canvas.width * 100;
-    const panY = offsetY / (canvas.height / 2) * 100;
+  function setOutputLayout(layout) {
+    if (active()) return;
+    outputLayout = layout === 'horizontal' ? 'horizontal' : 'vertical';
+    const horizontal = outputLayout === 'horizontal';
+    canvas.width = horizontal ? 1920 : 1080;
+    canvas.height = horizontal ? 1080 : 1920;
+    stage.classList.toggle('layout-horizontal', horizontal);
+    stage.classList.toggle('layout-vertical', !horizontal);
+    $('reactionOutputVertical').classList.toggle('active', !horizontal);
+    $('reactionOutputHorizontal').classList.toggle('active', horizontal);
+    $('reactionLayoutLabel').textContent = horizontal
+      ? 'Sortie 16:9 · caméra à gauche · vidéo à droite'
+      : 'Sortie 9:16 · caméra en haut · vidéo en bas';
+    syncPreviewTransforms();
+    ensureDraw();
+  }
+
+  function syncPreviewTransforms() {
+    const cameraZoom = Number($('reactionCameraZoom').value) / 100;
+    const videoZoom = Number($('reactionZoom').value) / 100;
+
+    camera.style.objectFit = cameraFit;
+    camera.style.transform = `translate3d(${cameraPanX}%, ${cameraPanY}%, 0) scaleX(-1) scale(${cameraZoom})`;
+
     video.style.objectFit = videoFit;
-    video.style.transform = `translate3d(${panX}%, ${panY}%, 0) scale(${zoom})`;
-    $('reactionFitCover').classList.toggle('active', videoFit === 'cover');
+    video.style.transform = `translate3d(${videoPanX}%, ${videoPanY}%, 0) scale(${videoZoom})`;
+
+    $('reactionCameraFitContain').classList.toggle('active', cameraFit === 'contain');
+    $('reactionCameraFitCover').classList.toggle('active', cameraFit === 'cover');
     $('reactionFitContain').classList.toggle('active', videoFit === 'contain');
+    $('reactionFitCover').classList.toggle('active', videoFit === 'cover');
   }
 
   function draw() {
-    if (!visible && !active()) { frameId = 0; return; }
-    drawHalf(camera, 0, 1, 0, 0, 'cover');
-    drawHalf(video, canvas.height / 2, Number($('reactionZoom').value) / 100, offsetX, offsetY, videoFit);
+    if (!visible && !active()) {
+      frameId = 0;
+      return;
+    }
+    const r = regions();
+    drawRegion(
+      camera,
+      r.camera,
+      Number($('reactionCameraZoom').value) / 100,
+      cameraPanX,
+      cameraPanY,
+      cameraFit,
+      true
+    );
+    drawRegion(
+      video,
+      r.video,
+      Number($('reactionZoom').value) / 100,
+      videoPanX,
+      videoPanY,
+      videoFit,
+      false
+    );
+
     if (video.duration) {
       $('reactionSeek').value = String(Math.round(video.currentTime / video.duration * 1000));
       $('reactionTime').textContent = `${format(video.currentTime)} / ${format(video.duration)}`;
@@ -74,7 +145,9 @@
     frameId = requestAnimationFrame(draw);
   }
 
-  function ensureDraw() { if (!frameId) draw(); }
+  function ensureDraw() {
+    if (!frameId) draw();
+  }
 
   async function waitForFirstFrame() {
     if (video.readyState >= 2 && video.videoWidth) return;
@@ -99,16 +172,22 @@
       video.src = fileUrl;
       video.preload = 'auto';
       video.load();
-      offsetX = offsetY = 0;
-      videoFit = 'cover';
+
+      videoPanX = videoPanY = 0;
+      videoFit = 'contain';
       $('reactionZoom').value = '100';
       $('reactionVideoPlaceholder').classList.remove('hidden');
       status('Chargement de la vidéo…');
+
       await waitForFirstFrame();
       $('reactionVideoPlaceholder').classList.add('hidden');
-      syncPreviewTransform();
+      syncPreviewTransforms();
       ensureDraw();
-      status(`Vidéo prête : ${file.name}`);
+
+      const ratio = video.videoWidth && video.videoHeight
+        ? `${video.videoWidth}×${video.videoHeight}`
+        : 'format natif';
+      status(`Vidéo prête en entier (${ratio}).`);
       $('reactionRecord').disabled = !cameraStream;
     } catch (error) {
       fileUrl = null;
@@ -120,17 +199,25 @@
     if (active()) return;
     requestingCamera = false;
     try {
-      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Caméra indisponible dans cet environnement.');
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Caméra indisponible dans cet environnement.');
+      }
       if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
+
+      const videoConstraints = {
+        facingMode: { ideal: 'user' },
+        width: { ideal: 1920 },
+        height: { ideal: 1920 }
+      };
 
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'user' }, width: { ideal: 1080 }, height: { ideal: 1920 } },
+          video: videoConstraints,
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
-      } catch (firstError) {
+      } catch (_) {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'user' }, width: { ideal: 1080 }, height: { ideal: 1920 } },
+          video: videoConstraints,
           audio: false
         });
         status('Caméra active. Micro non autorisé : la prise sera sans ta voix.');
@@ -138,16 +225,20 @@
 
       camera.srcObject = cameraStream;
       await camera.play();
+      cameraPanX = cameraPanY = 0;
+      cameraFit = 'contain';
+      $('reactionCameraZoom').value = '100';
+      syncPreviewTransforms();
       $('reactionCameraPlaceholder').classList.add('hidden');
-      $('reactionCamera').textContent = '✓ Caméra frontale active';
+      $('reactionCamera').textContent = '✓ Caméra active';
       $('reactionRecord').disabled = !fileUrl;
       ensureDraw();
-      if (cameraStream.getAudioTracks().length) status('Caméra frontale et micro prêts.');
+      if (cameraStream.getAudioTracks().length) status('Caméra et micro prêts. Image complète.');
     } catch (error) {
       cameraStream = null;
       camera.srcObject = null;
       $('reactionCameraPlaceholder').classList.remove('hidden');
-      $('reactionCamera').textContent = '📷 Activer la caméra frontale';
+      $('reactionCamera').textContent = '📷 Caméra';
       status(`Caméra impossible : ${error.message}`);
     }
   }
@@ -181,7 +272,10 @@
   async function startRecording() {
     if (!fileUrl || !cameraStream || active()) return;
     try {
-      if (!canvas.captureStream || !window.MediaRecorder) throw new Error('Enregistrement Split Screen non pris en charge par cet appareil.');
+      if (!canvas.captureStream || !window.MediaRecorder) {
+        throw new Error('Enregistrement Split Screen non pris en charge par cet appareil.');
+      }
+
       audio ??= new (window.AudioContext || window.webkitAudioContext)();
       await audio.resume();
       sourceNode ??= audio.createMediaElementSource(video);
@@ -191,6 +285,7 @@
       sourceGain.disconnect();
       sourceNode.connect(sourceGain);
       sourceGain.connect(audio.destination);
+
       mix = audio.createMediaStreamDestination();
       sourceGain.connect(mix);
 
@@ -211,12 +306,20 @@
       if (!mimeType) throw new Error('Aucun encodeur vidéo compatible.');
 
       chunks = [];
-      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 160_000 });
-      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 10_000_000,
+        audioBitsPerSecond: 160_000
+      });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
       recorder.onerror = () => status('Erreur d’encodage : vérifie l’espace disponible.');
       recorder.onstop = async () => {
         picture.getTracks().forEach((track) => track.stop());
-        micNode?.disconnect(); micNode = null;
+        micNode?.disconnect();
+        micNode = null;
         try { sourceGain?.disconnect(mix); } catch (_) {}
         mix = null;
 
@@ -225,8 +328,10 @@
           status('Aucun fichier généré.');
           return;
         }
+
         const blob = new Blob(chunks, { type: mimeType });
-        const filename = `Remix-Reaction-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
+        const suffix = outputLayout === 'horizontal' ? '16x9' : '9x16';
+        const filename = `Remix-Reaction-${suffix}-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
         try {
           status('Enregistrement terminé. Sauvegarde…');
           await saveReactionBlob(blob, filename);
@@ -235,9 +340,13 @@
           status(`Export impossible : ${error.message}`);
         } finally {
           $('reactionRecord').disabled = !cameraStream || !fileUrl;
+          $('reactionOutputVertical').disabled = false;
+          $('reactionOutputHorizontal').disabled = false;
         }
       };
 
+      $('reactionOutputVertical').disabled = true;
+      $('reactionOutputHorizontal').disabled = true;
       recorder.start(500);
       await video.play();
       recordingPaused = false;
@@ -245,8 +354,10 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status('Enregistrement en cours. Tu peux lire, mettre en pause ou déplacer la timeline.');
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} en cours.`);
     } catch (error) {
+      $('reactionOutputVertical').disabled = false;
+      $('reactionOutputHorizontal').disabled = false;
       if (active()) recorder.stop();
       status(`Enregistrement impossible : ${error.message}`);
     }
@@ -280,10 +391,46 @@
     status('Finalisation de la vidéo…');
   }
 
+  function resetCameraPosition() {
+    cameraPanX = cameraPanY = 0;
+    $('reactionCameraZoom').value = '100';
+    syncPreviewTransforms();
+  }
+
   function resetVideoPosition() {
-    offsetX = offsetY = 0;
+    videoPanX = videoPanY = 0;
     $('reactionZoom').value = '100';
-    syncPreviewTransform();
+    syncPreviewTransforms();
+  }
+
+  function bindDrag(element, target) {
+    element.addEventListener('pointerdown', (event) => {
+      if ((target === 'camera' && !cameraStream) || (target === 'video' && !fileUrl)) return;
+      drag = { target, x: event.clientX, y: event.clientY };
+      element.setPointerCapture(event.pointerId);
+    });
+
+    element.addEventListener('pointermove', (event) => {
+      if (!drag || drag.target !== target) return;
+      const rect = element.getBoundingClientRect();
+      const dx = (event.clientX - drag.x) / Math.max(1, rect.width) * 100;
+      const dy = (event.clientY - drag.y) / Math.max(1, rect.height) * 100;
+
+      if (target === 'camera') {
+        cameraPanX += dx;
+        cameraPanY += dy;
+      } else {
+        videoPanX += dx;
+        videoPanY += dy;
+      }
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      syncPreviewTransforms();
+    });
+
+    const stop = () => { if (drag?.target === target) drag = null; };
+    element.addEventListener('pointerup', stop);
+    element.addEventListener('pointercancel', stop);
   }
 
   function showTab(which) {
@@ -291,16 +438,20 @@
       status('Termine la prise avant de changer d’onglet.');
       return;
     }
+
     const reactionMode = which === 'reaction';
     visible = reactionMode;
     $('reactionPanel').classList.toggle('hidden', !reactionMode);
     document.querySelector('.workspace').classList.toggle('hidden', reactionMode);
     $('editorDock').classList.toggle('hidden', reactionMode);
-    for (const id of ['editorTab', 'interviewTab', 'reactionTab']) $(id).classList.toggle('active', id === `${which}Tab`);
+
+    for (const id of ['editorTab', 'interviewTab', 'reactionTab']) {
+      $(id).classList.toggle('active', id === `${which}Tab`);
+    }
 
     if (reactionMode) {
       ensureDraw();
-      syncPreviewTransform();
+      syncPreviewTransforms();
       stopTimelinePreview?.(true);
     } else if (!active()) {
       video.pause();
@@ -308,7 +459,7 @@
       cameraStream = null;
       camera.srcObject = null;
       $('reactionCameraPlaceholder').classList.remove('hidden');
-      $('reactionCamera').textContent = '📷 Activer la caméra frontale';
+      $('reactionCamera').textContent = '📷 Caméra';
       $('reactionRecord').disabled = true;
     }
   }
@@ -316,66 +467,84 @@
   $('reactionInput').addEventListener('change', (event) => importVideo(event.target.files?.[0]));
   $('reactionCameraPlaceholder').addEventListener('click', startCamera);
   $('reactionVideoPlaceholder').addEventListener('click', () => {
-    if (!fileUrl && !active()) $('reactionInput').click();
+    if (!active()) $('reactionInput').click();
   });
   $('reactionCamera').addEventListener('click', startCamera);
-  $('reactionCameraQuick').addEventListener('click', (event) => { event.stopPropagation(); startCamera(); });
+  $('reactionCameraQuick').addEventListener('click', (event) => {
+    event.stopPropagation();
+    startCamera();
+  });
   $('reactionImportQuick').addEventListener('click', (event) => {
     event.stopPropagation();
     if (!active()) $('reactionInput').click();
   });
+
+  $('reactionOutputVertical').addEventListener('click', () => setOutputLayout('vertical'));
+  $('reactionOutputHorizontal').addEventListener('click', () => setOutputLayout('horizontal'));
+
   $('reactionRecord').addEventListener('click', startRecording);
   $('reactionPause').addEventListener('click', pauseRecording);
   $('reactionStop').addEventListener('click', stopRecording);
-  $('reactionPlay').addEventListener('click', () => video.paused ? video.play().catch(() => {}) : video.pause());
+  $('reactionPlay').addEventListener('click', () => {
+    video.paused ? video.play().catch(() => {}) : video.pause();
+  });
 
   video.addEventListener('play', () => { $('reactionPlay').textContent = '⏸ Pause vidéo'; });
   video.addEventListener('pause', () => { $('reactionPlay').textContent = '▶ Lire'; });
-  video.addEventListener('loadedmetadata', () => { $('reactionTime').textContent = `00:00 / ${format(video.duration)}`; });
+  video.addEventListener('loadedmetadata', () => {
+    $('reactionTime').textContent = `00:00 / ${format(video.duration)}`;
+  });
   video.addEventListener('loadeddata', () => {
     $('reactionVideoPlaceholder').classList.add('hidden');
     ensureDraw();
   });
-  camera.addEventListener('loadeddata', () => $('reactionCameraPlaceholder').classList.add('hidden'));
+  camera.addEventListener('loadeddata', () => {
+    $('reactionCameraPlaceholder').classList.add('hidden');
+  });
 
-  $('reactionBack').addEventListener('click', () => { video.currentTime = Math.max(0, video.currentTime - 5); });
-  $('reactionForward').addEventListener('click', () => { video.currentTime = Math.min(video.duration || 0, video.currentTime + 5); });
+  $('reactionBack').addEventListener('click', () => {
+    video.currentTime = Math.max(0, video.currentTime - 5);
+  });
+  $('reactionForward').addEventListener('click', () => {
+    video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
+  });
   $('reactionSeek').addEventListener('input', () => {
     if (video.duration) video.currentTime = Number($('reactionSeek').value) / 1000 * video.duration;
   });
+
   $('reactionVolume').addEventListener('input', setVolume);
-  $('reactionZoom').addEventListener('input', syncPreviewTransform);
+  $('reactionCameraZoom').addEventListener('input', syncPreviewTransforms);
+  $('reactionZoom').addEventListener('input', syncPreviewTransforms);
+
   $('reactionMute').addEventListener('click', () => {
     mute = !mute;
     setVolume();
-    $('reactionMute').textContent = mute ? '🔇 Activer' : '🔊 Couper';
+    $('reactionMute').textContent = mute ? '🔇 Réactiver' : '🔊 Son vidéo';
     $('reactionMute').setAttribute('aria-pressed', String(mute));
+  });
+
+  $('reactionCameraFitContain').addEventListener('click', () => {
+    cameraFit = 'contain';
+    resetCameraPosition();
+  });
+  $('reactionCameraFitCover').addEventListener('click', () => {
+    cameraFit = 'cover';
+    resetCameraPosition();
+  });
+  $('reactionCameraReset').addEventListener('click', resetCameraPosition);
+
+  $('reactionFitContain').addEventListener('click', () => {
+    videoFit = 'contain';
+    resetVideoPosition();
   });
   $('reactionFitCover').addEventListener('click', () => {
     videoFit = 'cover';
     resetVideoPosition();
   });
-  $('reactionFitContain').addEventListener('click', () => {
-    videoFit = 'contain';
-    resetVideoPosition();
-  });
   $('reactionReset').addEventListener('click', resetVideoPosition);
 
-  videoHalf.addEventListener('pointerdown', (event) => {
-    if (!fileUrl) return;
-    drag = { x: event.clientX, y: event.clientY };
-    videoHalf.setPointerCapture(event.pointerId);
-  });
-  videoHalf.addEventListener('pointermove', (event) => {
-    if (!drag) return;
-    const rect = videoHalf.getBoundingClientRect();
-    offsetX += (event.clientX - drag.x) * canvas.width / rect.width;
-    offsetY += (event.clientY - drag.y) * (canvas.height / 2) / rect.height;
-    drag = { x: event.clientX, y: event.clientY };
-    syncPreviewTransform();
-  });
-  videoHalf.addEventListener('pointerup', () => { drag = null; });
-  videoHalf.addEventListener('pointercancel', () => { drag = null; });
+  bindDrag(cameraHalf, 'camera');
+  bindDrag(videoHalf, 'video');
 
   $('editorTab').addEventListener('click', () => showTab('editor'));
   $('interviewTab').addEventListener('click', () => {
@@ -384,6 +553,10 @@
     else showToast('Importe deux vidéos sur la timeline, puis choisis le Mode 2.');
   });
   $('reactionTab').addEventListener('click', () => showTab('reaction'));
-  window.addEventListener('resize', syncPreviewTransform);
-  window.addEventListener('beforeunload', () => cameraStream?.getTracks().forEach((track) => track.stop()));
+
+  setOutputLayout('vertical');
+  window.addEventListener('resize', syncPreviewTransforms);
+  window.addEventListener('beforeunload', () => {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+  });
 })();

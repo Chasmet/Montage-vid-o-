@@ -93,9 +93,13 @@
     </main>
 
     <section id="reactionPanel" class="reaction-panel hidden" aria-label="Réaction et écran partagé">
-      <div class="reaction-heading"><strong>Réaction / Split Screen</strong><small>Caméra en haut · vidéo en bas · 9:16</small></div>
-      <div class="reaction-stage" aria-label="Aperçu de la réaction">
-        <div class="reaction-half reaction-camera-half">
+      <div class="reaction-heading"><strong>Réaction / Split Screen</strong><small id="reactionLayoutLabel">Sortie 9:16 · sources complètes 9:16 / 19:9</small></div>
+      <div class="reaction-output-controls" aria-label="Format de sortie">
+        <button id="reactionOutputVertical" class="active" type="button">9:16 vertical</button>
+        <button id="reactionOutputHorizontal" type="button">16:9 horizontal</button>
+      </div>
+      <div id="reactionStage" class="reaction-stage layout-vertical" aria-label="Aperçu de la réaction">
+        <div id="reactionCameraHalf" class="reaction-half reaction-camera-half">
           <video id="reactionCameraVideo" playsinline autoplay muted></video>
           <button id="reactionCameraPlaceholder" class="reaction-placeholder reaction-half-action" type="button"><strong>📷 Caméra frontale</strong><small>Touche ici pour activer la caméra</small></button>
         </div>
@@ -122,17 +126,31 @@
         <button id="reactionForward" type="button" aria-label="Avancer de cinq secondes">+5 s</button>
       </div>
       <label class="reaction-timeline"><span id="reactionTime">00:00 / 00:00</span><input id="reactionSeek" type="range" min="0" max="1000" value="0" aria-label="Position de la vidéo" /></label>
-      <div class="reaction-sliders">
+      <div class="reaction-audio-controls">
         <label>Son vidéo <input id="reactionVolume" type="range" min="0" max="100" value="65" /></label>
-        <label>Zoom vidéo <input id="reactionZoom" type="range" min="100" max="250" value="100" /></label>
-        <button id="reactionMute" type="button" aria-pressed="false">🔊 Couper</button>
+        <button id="reactionMute" type="button" aria-pressed="false">🔊 Son vidéo</button>
       </div>
-      <div class="reaction-fit-controls">
-        <button id="reactionFitCover" class="active" type="button">Remplir la moitié</button>
-        <button id="reactionFitContain" type="button">Voir toute la vidéo</button>
-        <button id="reactionReset" type="button">Recentrer</button>
+      <div class="reaction-source-tools">
+        <div class="reaction-source-card">
+          <div class="reaction-source-title"><strong>Caméra</strong><span>image entière par défaut</span></div>
+          <label>Zoom <input id="reactionCameraZoom" type="range" min="100" max="250" value="100" /></label>
+          <div class="reaction-fit-controls">
+            <button id="reactionCameraFitContain" class="active" type="button">Entière</button>
+            <button id="reactionCameraFitCover" type="button">Remplir</button>
+            <button id="reactionCameraReset" type="button">Recentrer</button>
+          </div>
+        </div>
+        <div class="reaction-source-card">
+          <div class="reaction-source-title"><strong>Vidéo</strong><span>image entière par défaut</span></div>
+          <label>Zoom <input id="reactionZoom" type="range" min="100" max="250" value="100" /></label>
+          <div class="reaction-fit-controls">
+            <button id="reactionFitContain" class="active" type="button">Entière</button>
+            <button id="reactionFitCover" type="button">Remplir</button>
+            <button id="reactionReset" type="button">Recentrer</button>
+          </div>
+        </div>
       </div>
-      <small class="reaction-hint">Glisse la vidéo pour la repositionner. Un casque évite l’écho du micro.</small>
+      <small class="reaction-hint">Glisse directement la caméra ou la vidéo pour la repositionner. Les formats natifs 9:16, 19:9 et autres restent non déformés.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 
