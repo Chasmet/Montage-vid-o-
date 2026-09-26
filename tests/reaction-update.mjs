@@ -9,7 +9,9 @@ const bridge = read('js/android-bridge.js');
 const manager = read('app/src/main/java/com/chasmet/remixstudio/UpdateManager.java');
 const manifest = read('app/src/main/AndroidManifest.xml');
 const workflow = read('.github/workflows/build-apk.yml');
-const worker = read('service-worker.js');\nconst mainActivity = read('app/src/main/java/com/chasmet/remixstudio/MainActivity.java');\nconst init = read('js/init.js');
+const worker = read('service-worker.js');
+const mainActivity = read('app/src/main/java/com/chasmet/remixstudio/MainActivity.java');
+const init = read('js/init.js');
 
 for (const path of ['js/reaction.js', 'js/app-settings.js']) {
   const result = spawnSync(process.execPath, ['--check', path], { encoding: 'utf8' });
