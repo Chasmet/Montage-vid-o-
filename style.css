@@ -595,7 +595,7 @@ progress{width:100%;height:12px;accent-color:var(--cyan)}
 .reaction-output-controls button{height:36px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font-weight:800}
 .reaction-output-controls button.active{border-color:var(--cyan);background:var(--cyan-soft);color:var(--cyan)}
 .reaction-output-controls button:disabled{opacity:.45}
-.reaction-audio-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;color:var(--muted);font-size:.76rem}
+.reaction-audio-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end;color:var(--muted);font-size:.76rem}
 .reaction-audio-controls label{display:grid;gap:4px}.reaction-audio-controls input{width:100%;accent-color:var(--cyan)}
 .reaction-audio-controls button{height:38px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:white;font-weight:700}
 .reaction-source-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -696,3 +696,9 @@ progress{width:100%;height:12px;accent-color:var(--cyan)}
 
 .reaction-half,.reaction-media-frame{background:#000}
 .reaction-half::before,.reaction-half::after,.reaction-media-frame::before,.reaction-media-frame::after{content:none!important}
+
+.reaction-audio-hint{color:var(--muted);font-size:.68rem;line-height:1.35}
+@media (max-width:430px){
+  .reaction-audio-controls{grid-template-columns:1fr 1fr}
+  .reaction-audio-controls button{grid-column:1/-1}
+}

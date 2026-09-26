@@ -13,7 +13,7 @@
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-  let fileUrl, cameraStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, mix;
+  let fileUrl, cameraStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micHighpass, micCompressor, micGain, mix;
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
@@ -347,7 +347,13 @@
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: videoConstraints,
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: { ideal: 1 },
+            sampleRate: { ideal: 48000 }
+          }
         });
       } catch (_) {
         cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -406,6 +412,27 @@
     else video.volume = value;
   }
 
+  function desiredMicGain() {
+    const base = Number($('reactionMicGain').value || 180) / 100;
+    const priorityBoost = video.paused && active() ? 1.35 : 1;
+    return Math.min(3, base * priorityBoost);
+  }
+
+  function updateMicPriority(immediate = false) {
+    if (!micGain || !audio) return;
+    const target = desiredMicGain();
+    const now = audio.currentTime;
+    micGain.gain.cancelScheduledValues(now);
+    if (immediate) micGain.gain.setValueAtTime(target, now);
+    else {
+      micGain.gain.setValueAtTime(Math.max(0.01, micGain.gain.value), now);
+      micGain.gain.linearRampToValueAtTime(target, now + 0.08);
+    }
+    $('reactionAudioHint').textContent = video.paused && active()
+      ? 'Vidéo en pause : micro prioritaire automatiquement.'
+      : 'Micro renforcé avec compression voix et réduction des graves.';
+  }
+
   async function startRecording() {
     if (!fileUrl || !cameraStream || active()) return;
     try {
@@ -428,9 +455,26 @@
 
       if (cameraStream.getAudioTracks().length) {
         micNode = audio.createMediaStreamSource(cameraStream);
-        micNode.connect(mix);
+        micHighpass = audio.createBiquadFilter();
+        micHighpass.type = 'highpass';
+        micHighpass.frequency.value = 80;
+        micHighpass.Q.value = 0.7;
+
+        micCompressor = audio.createDynamicsCompressor();
+        micCompressor.threshold.value = -24;
+        micCompressor.knee.value = 18;
+        micCompressor.ratio.value = 4;
+        micCompressor.attack.value = 0.003;
+        micCompressor.release.value = 0.22;
+
+        micGain = audio.createGain();
+        micNode.connect(micHighpass);
+        micHighpass.connect(micCompressor);
+        micCompressor.connect(micGain);
+        micGain.connect(mix);
       }
       setVolume();
+      updateMicPriority(true);
 
       const picture = canvas.captureStream(30);
       const stream = new MediaStream([...picture.getVideoTracks(), ...mix.stream.getAudioTracks()]);
@@ -447,7 +491,7 @@
       recorder = new MediaRecorder(stream, {
         mimeType,
         videoBitsPerSecond: 10_000_000,
-        audioBitsPerSecond: 160_000
+        audioBitsPerSecond: 192_000
       });
 
       recorder.ondataavailable = (event) => {
@@ -456,8 +500,11 @@
       recorder.onerror = () => status('Erreur d’encodage : vérifie l’espace disponible.');
       recorder.onstop = async () => {
         picture.getTracks().forEach((track) => track.stop());
-        micNode?.disconnect();
-        micNode = null;
+        try { micNode?.disconnect(); } catch (_) {}
+        try { micHighpass?.disconnect(); } catch (_) {}
+        try { micCompressor?.disconnect(); } catch (_) {}
+        try { micGain?.disconnect(); } catch (_) {}
+        micNode = micHighpass = micCompressor = micGain = null;
         try { sourceGain?.disconnect(mix); } catch (_) {}
         mix = null;
 
@@ -498,7 +545,7 @@
       $('reactionRecord').disabled = true;
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
-      $('reactionPause').textContent = '⏸ Pause';
+      $('reactionPause').textContent = '⏸ Pause vidéo';
       status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'clean' ? 'Propre' : outputFraming === 'crop' ? 'Recadré' : 'Libre'} · MP4.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
@@ -513,18 +560,18 @@
 
   function pauseRecording() {
     if (!active()) return;
-    if (recordingPaused) {
-      recorder.resume();
+    if (video.paused) {
       recordingPaused = false;
       video.play().catch(() => {});
-      $('reactionPause').textContent = '⏸ Pause';
-      status('Enregistrement repris.');
+      $('reactionPause').textContent = '⏸ Pause vidéo';
+      updateMicPriority();
+      status('Vidéo reprise. Le micro reste actif.');
     } else {
       video.pause();
-      recorder.pause();
       recordingPaused = true;
-      $('reactionPause').textContent = '▶ Reprendre';
-      status('Enregistrement en pause.');
+      $('reactionPause').textContent = '▶ Reprendre vidéo';
+      updateMicPriority();
+      status('Vidéo en pause. REC continue et ton micro passe en priorité.');
     }
   }
 
@@ -645,8 +692,22 @@
     video.paused ? video.play().catch(() => {}) : video.pause();
   });
 
-  video.addEventListener('play', () => { $('reactionPlay').textContent = '⏸ Pause vidéo'; });
-  video.addEventListener('pause', () => { $('reactionPlay').textContent = '▶ Lire'; });
+  video.addEventListener('play', () => {
+    $('reactionPlay').textContent = '⏸ Pause vidéo';
+    if (active()) {
+      recordingPaused = false;
+      $('reactionPause').textContent = '⏸ Pause vidéo';
+      updateMicPriority();
+    }
+  });
+  video.addEventListener('pause', () => {
+    $('reactionPlay').textContent = '▶ Lire';
+    if (active()) {
+      recordingPaused = true;
+      $('reactionPause').textContent = '▶ Reprendre vidéo';
+      updateMicPriority();
+    }
+  });
   video.addEventListener('loadedmetadata', () => {
     $('reactionTime').textContent = `00:00 / ${format(video.duration)}`;
   });
@@ -671,6 +732,7 @@
   });
 
   $('reactionVolume').addEventListener('input', setVolume);
+  $('reactionMicGain').addEventListener('input', () => updateMicPriority());
   $('reactionCameraZoom').addEventListener('input', syncPreviewTransforms);
   $('reactionZoom').addEventListener('input', syncPreviewTransforms);
 

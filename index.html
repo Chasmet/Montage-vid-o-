@@ -124,7 +124,7 @@
       <div class="reaction-controls reaction-record-controls">
         <button id="reactionCamera" type="button">📷 Caméra</button>
         <button id="reactionRecord" class="record" type="button" disabled>● REC</button>
-        <button id="reactionPause" type="button" disabled>⏸ Pause</button>
+        <button id="reactionPause" type="button" disabled>⏸ Pause vidéo</button>
         <button id="reactionStop" type="button" disabled>■ Fin</button>
       </div>
       <label class="reaction-import" for="reactionInput">＋ Importer / changer la vidéo</label>
@@ -136,9 +136,11 @@
       </div>
       <label class="reaction-timeline"><span id="reactionTime">00:00 / 00:00</span><input id="reactionSeek" type="range" min="0" max="1000" value="0" aria-label="Position de la vidéo" /></label>
       <div class="reaction-audio-controls">
-        <label>Son vidéo <input id="reactionVolume" type="range" min="0" max="100" value="65" /></label>
+        <label>Son vidéo <input id="reactionVolume" type="range" min="0" max="100" value="80" /></label>
+        <label>Voix micro <input id="reactionMicGain" type="range" min="100" max="250" value="180" /></label>
         <button id="reactionMute" type="button" aria-pressed="false">🔊 Son vidéo</button>
       </div>
+      <small id="reactionAudioHint" class="reaction-audio-hint">Micro renforcé. Quand la vidéo est en pause, ta voix passe automatiquement en priorité.</small>
       <div class="reaction-source-tools">
         <div class="reaction-source-card">
           <div class="reaction-source-title"><strong>Caméra</strong><span>même cadre que la vidéo</span></div>

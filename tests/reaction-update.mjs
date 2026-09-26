@@ -24,14 +24,14 @@ for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSou
   'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionCameraFrame', 'reactionVideoFrame',
   'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingClean', 'reactionFramingCrop', 'reactionFramingFree',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
-  'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
+  'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionMicGain', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
   'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
   if (!html.includes(`id="${id}"`)) throw new Error(`Commande manquante : ${id}`);
 }
 
 for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(video)',
-  'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
+  'createMediaStreamDestination()', 'video.pause();',
   'video.currentTime', 'MediaRecorder.isTypeSupported',
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
   'requestReactionPermissions', "cameraFit = 'cover'", "videoFit = 'contain'", "videoFit = 'cover'",
@@ -94,6 +94,16 @@ if (reaction.includes('drawBlurredSlotBackground') || reaction.includes("ctx.fil
   throw new Error('Aucun flou, duplication ou ancien mode Smart ne doit rester dans la sortie Réaction.');
 if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
   throw new Error('L’export Réaction doit être MP4 direct sans fallback WebM.');
+if (reaction.includes('recorder.pause()') || reaction.includes('recorder.resume()'))
+  throw new Error('Pause vidéo ne doit jamais suspendre MediaRecorder ni couper le micro.');
+for (const marker of ['createBiquadFilter()', 'createDynamicsCompressor()', 'micHighpass.frequency.value = 80',
+  'micCompressor.threshold.value = -24', 'micGain = audio.createGain()', 'priorityBoost = video.paused && active() ? 1.35 : 1',
+  "status('Vidéo en pause. REC continue et ton micro passe en priorité.')", 'audioBitsPerSecond: 192_000']) {
+  if (!reaction.includes(marker)) throw new Error(`Chaîne audio Réaction incomplète : ${marker}`);
+}
+if (!html.includes('id="reactionMicGain"') || !html.includes('value="180"') || !html.includes('>⏸ Pause vidéo</button>'))
+  throw new Error('Les réglages de voix et la pause vidéo doivent être explicites dans l’interface.');
+
 
 if (!html.includes('sources complètes 9:16 / 19:9') ||
     !html.includes('9:16 vertical') || !html.includes('16:9 horizontal') ||
@@ -106,4 +116,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction propre : zéro flou/duplication, modes Propre/Recadré/Libre, MP4 direct et mise à jour signée contrôlés.');
+console.log('Réaction audio : voix renforcée/compressée, micro prioritaire pendant pause vidéo, MP4 direct et mise à jour signée contrôlés.');
