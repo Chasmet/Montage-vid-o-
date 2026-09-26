@@ -33,6 +33,9 @@ jobs:
       - name: Vérifier les données et la réparation
         run: node tests/audit-model.mjs
 
+      - name: Vérifier la conservation des projets si le stockage échoue
+        run: node tests/project-storage-safety.mjs
+
       - name: Vérifier l’insertion au curseur
         run: node tests/insertion-cursor.mjs
 
@@ -128,6 +131,7 @@ jobs:
         run: |
           node tests/smoke.mjs
           node tests/audit-model.mjs
+          node tests/project-storage-safety.mjs
           node tests/insertion-cursor.mjs
           node tests/export-mode2.mjs
           node tests/mode2-sync.mjs

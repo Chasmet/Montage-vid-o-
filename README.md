@@ -9,15 +9,15 @@ Application Android et web de montage vidéo mobile avec une timeline unique ins
 - Dernière version signée : https://github.com/Chasmet/Montage-vid-o-/releases/latest
 - Si la signature release n’est pas configurée, l’APK debug est disponible dans les artefacts GitHub Actions.
 
-L’APK est reconstruit automatiquement après chaque modification de la branche `main`. La publication d’une Release nécessite les quatre secrets GitHub `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` et `RELEASE_KEY_PASSWORD` (la même clé privée pour toutes les versions). Une installation existante ne peut conserver ses données lors d’une mise à jour que si les deux APK ont le même identifiant et la même signature. Ne publiez jamais la clé dans le dépôt.
+L’APK est reconstruit et publié automatiquement après chaque modification de la branche `main`. Une installation existante conserve ses données lors d’une mise à jour si les deux APK ont le même identifiant et la même signature. La clé de signature utilisée actuellement par le workflow doit être retirée du dépôt public et migrée vers les secrets de GitHub Actions ; une rotation de clé nécessite un plan de migration pour les installations existantes.
 
 ## Réaction / Split Screen
 
-Le troisième onglet importe une vidéo, filme la caméra frontale en haut et affiche la vidéo en bas sur un canevas vertical 9:16. Lecture, pause, déplacement dans la vidéo, volume, sourdine, zoom et repositionnement sont accessibles pendant l’enregistrement. Le bouton Pause suspend la prise et la lecture ensemble. L’export utilise l’encodeur du téléphone et sauvegarde en MP4 si disponible, sinon en WebM. Un casque évite le retour sonore dans le microphone.
+Le troisième onglet importe une vidéo, filme la caméra frontale en haut et affiche la vidéo en bas sur un canevas vertical 9:16 ou horizontal 16:9. Lecture, pause, déplacement dans la vidéo, volume, sourdine, zoom et repositionnement sont accessibles pendant l’enregistrement. La caméra remplit sa moitié par défaut ; le bouton « Champ large » affiche le flux entier si son ratio diffère. Pendant la lecture, seul le son de la vidéo est enregistré. Quand la vidéo est en pause, l’enregistrement continue et seul le microphone est capté. L’export Réaction nécessite la prise en charge du MP4 direct par l’appareil. Un casque évite que le son du téléphone repasse dans le microphone.
 
 ## Mises à jour Android
 
-Dans Réglages, activez la recherche automatique ou lancez une vérification manuelle. L’application vérifie `releases/latest`, télécharge l’APK signé et son SHA-256, contrôle l’identifiant et la signature de l’application, puis ouvre le programme d’installation Android. Android demande une confirmation. Le stockage des projets reste dans l’application tant que la signature est conservée et que l’installation se fait en mise à jour. Une ancienne installation debug signée avec une clé différente ne peut pas être mise à jour en place.
+Dans Réglages, activez la recherche automatique ou lancez une vérification manuelle. L’application recherche la dernière Release signée, télécharge l’APK et son SHA-256, contrôle l’identifiant et la signature de l’application, puis ouvre le programme d’installation Android. Android demande une confirmation. Le stockage des projets reste dans l’application tant que la signature est conservée et que l’installation se fait en mise à jour. En cas d’échec de lecture du stockage des médias au démarrage, le projet est conservé et l’application demande de la rouvrir.
 
 ## Utilisation simplifiée
 
@@ -62,7 +62,7 @@ Les clips passent les uns après les autres en plein écran, selon l’ordre de 
 - Caméra Android native CameraX et micro du téléphone.
 - Annuler et rétablir jusqu’à 40 modifications.
 - Sauvegarde automatique locale dans IndexedDB.
-- Auto-réparation des médias et protection du stockage.
+- Diagnostic des médias, réparation manuelle et conservation du projet si le stockage échoue.
 - Protection anti-blocage pendant les exports.
 - Export Full HD 1080p.
 - MP4 quand Android le prend en charge, sinon WebM haute qualité.
