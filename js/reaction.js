@@ -18,7 +18,7 @@
   let requestingCamera = false;
   let outputLayout = 'vertical';
   let sourceAspect = 9 / 16;
-  let cameraFit = 'contain', videoFit = 'contain';
+  let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
@@ -174,6 +174,41 @@
     $('reactionFitCover').classList.toggle('active', videoFit === 'cover');
   }
 
+  function drawBlurredSlotBackground(element, slot, mirror = false) {
+    if (!(element.readyState >= 2 && element.videoWidth && element.videoHeight)) return;
+    const { x, y, w, h } = slot;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.filter = 'blur(32px) brightness(0.55) saturate(0.9)';
+    ctx.globalAlpha = 0.9;
+    const scale = Math.max(w / element.videoWidth, h / element.videoHeight) * 1.08;
+    drawImageInRegion(element, slot, scale, 0, 0, mirror);
+    ctx.restore();
+  }
+
+  function drawForegroundInSharedFrame(element, frame, zoom, panXPercent, panYPercent, fit, mirror = false) {
+    const { x, y, w, h } = frame;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x, y, w, h);
+
+    if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
+      const scaleBase = fit === 'contain'
+        ? Math.min(w / element.videoWidth, h / element.videoHeight)
+        : Math.max(w / element.videoWidth, h / element.videoHeight);
+      const scale = scaleBase * zoom;
+      const panX = panXPercent / 100 * w;
+      const panY = panYPercent / 100 * h;
+      drawImageInRegion(element, frame, scale, panX, panY, mirror);
+    }
+    ctx.restore();
+  }
+
   function draw() {
     if (!visible && !active()) {
       frameId = 0;
@@ -183,19 +218,25 @@
     ctx.fillStyle = '#05070c';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const r = regions();
-    drawRegion(
+    const slots = regions();
+    const cameraFrameRegion = fitSharedFrame(slots.camera, sourceAspect);
+    const videoFrameRegion = fitSharedFrame(slots.video, sourceAspect);
+
+    drawBlurredSlotBackground(camera, slots.camera, true);
+    drawBlurredSlotBackground(video, slots.video, false);
+
+    drawForegroundInSharedFrame(
       camera,
-      r.camera,
+      cameraFrameRegion,
       Number($('reactionCameraZoom').value) / 100,
       cameraPanX,
       cameraPanY,
       cameraFit,
       true
     );
-    drawRegion(
+    drawForegroundInSharedFrame(
       video,
-      r.video,
+      videoFrameRegion,
       Number($('reactionZoom').value) / 100,
       videoPanX,
       videoPanY,
@@ -299,7 +340,7 @@
       camera.srcObject = cameraStream;
       await camera.play();
       cameraPanX = cameraPanY = 0;
-      cameraFit = 'contain';
+      cameraFit = 'cover';
       $('reactionCameraZoom').value = '100';
       syncSharedPreviewFrameSize();
       syncPreviewTransforms();
@@ -432,7 +473,7 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · image entière · fond flouté · MP4.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · caméra et vidéo dans deux cadres identiques · MP4.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
