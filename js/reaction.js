@@ -159,7 +159,13 @@
     $('editorDock').classList.toggle('hidden', reaction);
     for (const id of ['editorTab', 'interviewTab', 'reactionTab']) $(id).classList.toggle('active', id === `${which}Tab`);
     if (reaction) { ensureDraw(); stopTimelinePreview?.(true); }
-    else if (!active()) video.pause();
+    else if (!active()) {
+      video.pause();
+      cameraStream?.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
+      camera.srcObject = null;
+      $('reactionRecord').disabled = true;
+    }
   }
   $('reactionInput').addEventListener('change', (event) => importVideo(event.target.files?.[0]));
   $('reactionCamera').addEventListener('click', startCamera);
