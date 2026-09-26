@@ -12,6 +12,7 @@ const manifest = read('app/src/main/AndroidManifest.xml');
 const workflow = read('.github/workflows/build-apk.yml');
 const worker = read('service-worker.js');
 const mainActivity = read('app/src/main/java/com/chasmet/remixstudio/MainActivity.java');
+const nativeMic = read('app/src/main/java/com/chasmet/remixstudio/NativeReactionMic.java');
 const init = read('js/init.js');
 
 for (const path of ['js/reaction.js', 'js/app-settings.js']) {
@@ -108,6 +109,23 @@ if (!html.includes('id="reactionMicGain"') || !html.includes('value="180"') || !
 if (!reaction.includes('video: videoConstraints,\n          audio: false') ||
     reaction.includes('createMediaStreamSource(cameraStream)'))
   throw new Error('Le micro doit être indépendant de la caméra et ne jamais dépendre de cameraStream.');
+
+// The supplied reaction sample kept video frames after pause but its audio was silent.
+// Capture audio natively on Android and feed the live mix while the imported video is paused.
+for (const marker of ['AudioRecord', 'MediaRecorder.AudioSource.MIC', 'AudioFormat.ENCODING_PCM_16BIT',
+  'AudioRecord.READ_BLOCKING', 'onNativeReactionAudio', 'Base64.NO_WRAP']) {
+  if (!nativeMic.includes(marker)) throw new Error(`Capture micro Android manquante : ${marker}`);
+}
+for (const marker of ['new NativeReactionMic(this, webView)', 'startReactionMic()', 'stopReactionMic()']) {
+  if (!mainActivity.includes(marker)) throw new Error(`Pont micro Android manquant : ${marker}`);
+}
+for (const marker of ['window.onNativeReactionAudio = (encoded, sampleRate)',
+  'source.connect(micInput)', 'source.start(nativeMicNextTime)', 'micInput.connect(micHighpass)',
+  'nativeMicActive = Boolean(window.Android?.startReactionMic?.())', 'window.Android?.stopReactionMic?.()',
+  "$('reactionMicSignal').textContent"]) {
+  if (!reaction.includes(marker)) throw new Error(`Mixage micro pendant pause incomplet : ${marker}`);
+}
+if (!html.includes('id="reactionMicSignal"')) throw new Error('Le niveau du micro doit rester visible pendant la prise.');
 
 
 

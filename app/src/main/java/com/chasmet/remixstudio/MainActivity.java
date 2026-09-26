@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private UpdateManager updateManager;
+    private NativeReactionMic nativeReactionMic;
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingWebPermission;
     private boolean pendingReactionPermissionCallback = false;
@@ -74,6 +75,7 @@ public class MainActivity extends Activity {
 
         configureWebView();
         updateManager = new UpdateManager(this, webView);
+        nativeReactionMic = new NativeReactionMic(this, webView);
         requestLegacyStoragePermissionIfNeeded();
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html?apkVersion=" + BuildConfig.VERSION_CODE);
     }
@@ -336,6 +338,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (nativeReactionMic != null) nativeReactionMic.stop();
         if (webView != null) {
             webView.removeJavascriptInterface("Android");
             webView.stopLoading();
@@ -380,6 +383,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean hasNativeCamera() {
             return true;
+        }
+
+        @JavascriptInterface
+        public boolean startReactionMic() {
+            return activity.nativeReactionMic != null && activity.nativeReactionMic.start();
+        }
+
+        @JavascriptInterface
+        public void stopReactionMic() {
+            if (activity.nativeReactionMic != null) activity.nativeReactionMic.stop();
         }
 
         @JavascriptInterface
