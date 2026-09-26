@@ -69,7 +69,7 @@ async function init() {
     setTimelineTime(0, { preview: true, syncScroll: true, select: false, force: true });
   }
   enumerateDevices().catch(() => {});
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  if (!window.isRemixStudioAndroid && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('./service-worker.js').catch((error) => console.warn('Service worker', error));
   }
 }

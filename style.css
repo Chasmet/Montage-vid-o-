@@ -552,10 +552,10 @@ progress{width:100%;height:12px;accent-color:var(--cyan)}
   backdrop-filter:blur(20px);
   scrollbar-width:none;
 }
-.top-settings{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:white;min-width:40px;height:40px;font-size:1.2rem}
+.top-settings{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:white;min-width:92px;height:40px;padding:0 10px;font-size:.76rem;font-weight:800;white-space:nowrap}
 .mode-tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:65;display:flex;width:min(100%,760px);height:calc(52px + env(safe-area-inset-bottom));padding:5px 5px calc(5px + env(safe-area-inset-bottom));gap:5px;background:#10141d;border-top:1px solid var(--line)}
 .mode-tabs button{flex:1;min-width:0;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:.72rem;font-weight:700}
-.mode-tabs button.active{background:var(--cyan-soft);color:var(--cyan)}
+.mode-tabs button.active{background:var(--cyan-soft);color:var(--cyan)}\n#reactionTab{border:1px solid rgba(51,214,255,.25)}
 .reaction-panel{max-width:760px;margin:auto;padding:14px 12px 30px;display:grid;gap:13px}
 .reaction-heading{display:grid;gap:4px}.reaction-heading small,.reaction-hint{color:var(--muted);font-size:.72rem}
 .reaction-stage{height:min(56vh,540px);min-height:280px;display:grid;place-items:center;background:#000;border-radius:18px;overflow:hidden}

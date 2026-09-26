@@ -73,7 +73,7 @@ public class MainActivity extends Activity {
         configureWebView();
         updateManager = new UpdateManager(this, webView);
         requestLegacyStoragePermissionIfNeeded();
-        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html?apkVersion=" + BuildConfig.VERSION_CODE);
     }
 
     private File recordingsDirectory() {
@@ -91,7 +91,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);

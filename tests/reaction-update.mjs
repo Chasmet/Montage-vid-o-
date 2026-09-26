@@ -9,7 +9,7 @@ const bridge = read('js/android-bridge.js');
 const manager = read('app/src/main/java/com/chasmet/remixstudio/UpdateManager.java');
 const manifest = read('app/src/main/AndroidManifest.xml');
 const workflow = read('.github/workflows/build-apk.yml');
-const worker = read('service-worker.js');
+const worker = read('service-worker.js');\nconst mainActivity = read('app/src/main/java/com/chasmet/remixstudio/MainActivity.java');\nconst init = read('js/init.js');
 
 for (const path of ['js/reaction.js', 'js/app-settings.js']) {
   const result = spawnSync(process.execPath, ['--check', path], { encoding: 'utf8' });
@@ -47,5 +47,13 @@ if (!html.includes('<script src="js/android-bridge.js"></script>') || !bridge.in
   throw new Error('Pont Android de sauvegarde Réaction non chargé de façon déterministe.');
 if (!settings.includes('window.Android.getAutoUpdate()') || !settings.includes('window.Android.installUpdate()'))
   throw new Error('Réglages Android non reliés au pont natif.');
+
+for (const marker of ['WebSettings.LOAD_NO_CACHE', 'index.html?apkVersion=', 'BuildConfig.VERSION_CODE']) {
+  if (!mainActivity.includes(marker)) throw new Error(`Contournement du cache Android incomplet : ${marker}`);
+}
+if (!init.includes("!window.isRemixStudioAndroid"))
+  throw new Error('Le service worker ne doit pas être réinstallé dans l’application Android.');
+if (!html.includes('>⚙ Réglages</button>') || !html.includes('>● Réaction</button>'))
+  throw new Error('Les entrées Réglages et Réaction doivent être visibles explicitement.');
 
 console.log('Réaction 9:16, mixage et circuit de mise à jour contrôlés.');
