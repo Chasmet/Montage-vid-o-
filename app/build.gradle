@@ -15,19 +15,20 @@ android {
     }
 
     signingConfigs {
-        if (System.getenv('RELEASE_KEYSTORE_FILE')) {
-            release {
-                storeFile file(System.getenv('RELEASE_KEYSTORE_FILE'))
-                storePassword System.getenv('RELEASE_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('RELEASE_KEY_ALIAS')
-                keyPassword System.getenv('RELEASE_KEY_PASSWORD')
-            }
+        persistent {
+            storeFile rootProject.file('signing/remix-release.jks')
+            storePassword 'RemixAuto2026!'
+            keyAlias 'remixstudio'
+            keyPassword 'RemixAuto2026!'
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.persistent
+        }
         release {
-            if (System.getenv('RELEASE_KEYSTORE_FILE')) signingConfig signingConfigs.release
+            signingConfig signingConfigs.persistent
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

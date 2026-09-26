@@ -74,25 +74,12 @@ jobs:
           echo "CI_VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
           echo "CI_VERSION_NAME=3.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
-      - name: Préparer la clé de signature persistante
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      - name: Vérifier la clé de signature permanente
         run: |
-          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            echo "SIGNING_READY=false" >> "$GITHUB_ENV"
-            echo "Signature absente : APK debug conservé en artefact, publication désactivée."
-          else
-            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/remix-release.jks"
-            echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/remix-release.jks" >> "$GITHUB_ENV"
-            echo "RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-            echo "SIGNING_READY=true" >> "$GITHUB_ENV"
-          fi
+          test -f signing/remix-release.jks
+          keytool -list -v -keystore signing/remix-release.jks -storepass 'RemixAuto2026!' -alias remixstudio > signing-key.txt
+          grep -q "EF:47:F7:FE:94:C2:62:16:0A:09:6E:00:44:5C:B2:88:4B:F2:BF:86:32:D7:F9:A6:7A:AA:C5:CD:CC:22:F0:D1" signing-key.txt
+          echo "SIGNING_READY=true" >> "$GITHUB_ENV"
 
       - name: Construire l’APK avec CameraX
         run: |
@@ -100,16 +87,15 @@ jobs:
           gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Construire l’APK release signé
-        if: env.SIGNING_READY == 'true'
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Vérifier cryptographiquement l’APK release
-        if: env.SIGNING_READY == 'true'
         run: |
           APKSIGNER="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk | tee release-signature.txt
           grep -q "Verifies" release-signature.txt
+          grep -qi "ef47f7fe94c262160a096e00445cb2884bf2bf8632d7f9a67aaac5cdcc22f0d1" release-signature.txt
 
       - name: Vérifier le contenu réel de l’APK
         run: |
@@ -151,12 +137,8 @@ jobs:
       - name: Préparer le fichier à télécharger
         run: |
           mkdir -p release
-          if [ "${SIGNING_READY:-false}" = true ]; then
-            cp app/build/outputs/apk/release/app-release.apk release/RemixStudio.apk
-          else
-            cp app/build/outputs/apk/debug/app-debug.apk release/RemixStudio-debug.apk
-          fi
-          if [ -f release/RemixStudio.apk ]; then sha256sum release/RemixStudio.apk > release/RemixStudio.apk.sha256; fi
+          cp app/build/outputs/apk/release/app-release.apk release/RemixStudio.apk
+          sha256sum release/RemixStudio.apk > release/RemixStudio.apk.sha256
 
       - name: Conserver l’APK dans les artefacts
         uses: actions/upload-artifact@v4
@@ -167,16 +149,22 @@ jobs:
           if-no-files-found: error
 
       - name: Publier la dernière version téléchargeable
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.SIGNING_READY == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${CI_VERSION_NAME}" release/RemixStudio.apk release/RemixStudio.apk.sha256 --latest --title "Remix Studio ${CI_VERSION_NAME}" --notes "Réaction / Split Screen vertical, réglages et mises à jour signées. Android vérifie la signature et l’empreinte avant l’installation."
+          TAG="v${CI_VERSION_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/RemixStudio.apk release/RemixStudio.apk.sha256 --clobber
+          else
+            gh release create "$TAG" release/RemixStudio.apk release/RemixStudio.apk.sha256 --latest --title "Remix Studio ${CI_VERSION_NAME}" --notes "Mise à jour Android signée automatiquement avec la clé permanente Remix Studio. Installation depuis Réglages sans perte de données entre versions signées."
+          fi
+          gh release edit "$TAG" --latest
 
       - name: Enregistrer la réussite de la construction
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          printf '{"status":"success","version":"%s","signed_release":%s,"reaction_split_screen":true,"updates":true,"commit":"%s","built_at":"%s"}\n' "$CI_VERSION_NAME" "${SIGNING_READY:-false}" "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
+          printf '{"status":"success","version":"%s","signed_release":true,"reaction_split_screen":true,"updates":true,"commit":"%s","built_at":"%s"}\n' "$CI_VERSION_NAME" "$GITHUB_SHA" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > build-status.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add build-status.json

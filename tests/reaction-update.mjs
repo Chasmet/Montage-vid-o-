@@ -43,8 +43,9 @@ for (const marker of ['releases?per_page=20', 'findNewestSignedRelease', 'RemixS
   if (!(manager + manifest).includes(marker)) throw new Error(`Mise à jour non sécurisée : ${marker}`);
 }
 
-for (const marker of ['RELEASE_KEYSTORE_BASE64', 'SIGNING_READY', 'assembleRelease',
-  'RemixStudio-debug.apk', 'gh release create "v${CI_VERSION_NAME}"', 'sha256sum',
+for (const marker of ['signing/remix-release.jks', 'SIGNING_READY=true', 'assembleRelease',
+  'RemixStudio.apk', 'gh release create "$TAG"', 'gh release edit "$TAG" --latest', 'sha256sum',
+  'ef47f7fe94c262160a096e00445cb2884bf2bf8632d7f9a67aaac5cdcc22f0d1',
   'tests/reaction-update.mjs']) {
   if (!workflow.includes(marker)) throw new Error(`Publication incomplète : ${marker}`);
 }
@@ -75,4 +76,8 @@ if (!html.includes('width="1080" height="1920"'))
 
 if (!read('style.css').includes('height:clamp(250px,42dvh,320px)'))
   throw new Error('L’aperçu Réaction doit être compact sur téléphone.');
-console.log('Réaction compacte, aperçu 50/50, commandes directes, permissions, logo et mise à jour contrôlés.');
+const gradle = read('app/build.gradle');
+if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
+    !gradle.includes('signingConfig signingConfigs.persistent'))
+  throw new Error('Les APK debug et release doivent partager la signature permanente.');
+console.log('Réaction compacte, aperçu 50/50, signature permanente et mise à jour automatique contrôlés.');

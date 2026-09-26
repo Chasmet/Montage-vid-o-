@@ -6,3 +6,7 @@ dist/
 *.jks
 *.keystore
 app/build/
+
+# Clé persistante utilisée automatiquement pour les builds Remix Studio
+!signing/
+!signing/remix-release.jks
