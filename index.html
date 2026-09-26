@@ -100,11 +100,15 @@
       </div>
       <div id="reactionStage" class="reaction-stage layout-vertical" aria-label="Aperçu de la réaction">
         <div id="reactionCameraHalf" class="reaction-half reaction-camera-half">
-          <video id="reactionCameraVideo" playsinline autoplay muted></video>
+          <div id="reactionCameraFrame" class="reaction-media-frame">
+            <video id="reactionCameraVideo" playsinline autoplay muted></video>
+          </div>
           <button id="reactionCameraPlaceholder" class="reaction-placeholder reaction-half-action" type="button"><strong>📷 Caméra frontale</strong><small>Touche ici pour activer la caméra</small></button>
         </div>
         <div id="reactionVideoHalf" class="reaction-half reaction-video-half">
-          <video id="reactionSource" playsinline preload="auto"></video>
+          <div id="reactionVideoFrame" class="reaction-media-frame">
+            <video id="reactionSource" playsinline preload="auto"></video>
+          </div>
           <button id="reactionVideoPlaceholder" class="reaction-placeholder reaction-half-action" type="button"><strong>＋ Vidéo à commenter</strong><small>Touche ici pour choisir une vidéo</small></button>
         </div>
         <div class="reaction-divider" aria-hidden="true"></div>
@@ -132,11 +136,11 @@
       </div>
       <div class="reaction-source-tools">
         <div class="reaction-source-card">
-          <div class="reaction-source-title"><strong>Caméra</strong><span>image entière par défaut</span></div>
+          <div class="reaction-source-title"><strong>Caméra</strong><span>même cadre que la vidéo</span></div>
           <label>Zoom <input id="reactionCameraZoom" type="range" min="100" max="250" value="100" /></label>
           <div class="reaction-fit-controls">
-            <button id="reactionCameraFitContain" class="active" type="button">Entière</button>
-            <button id="reactionCameraFitCover" type="button">Remplir</button>
+            <button id="reactionCameraFitContain" type="button">Entière</button>
+            <button id="reactionCameraFitCover" class="active" type="button">Remplir</button>
             <button id="reactionCameraReset" type="button">Recentrer</button>
           </div>
         </div>
@@ -150,7 +154,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">Glisse directement la caméra ou la vidéo pour la repositionner. Les formats natifs 9:16, 19:9 et autres restent non déformés.</small>
+      <small class="reaction-hint">La vidéo importée définit le cadre. La caméra prend exactement la même dimension. Glisse chaque image pour la repositionner.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 

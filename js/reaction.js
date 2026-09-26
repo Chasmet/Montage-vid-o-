@@ -1,4 +1,4 @@
-/* Reaction / Split Screen: full-source dual view, vertical or horizontal output. */
+/* Reaction / Split Screen: equal source frames driven by the imported video's ratio. */
 (() => {
   'use strict';
 
@@ -8,6 +8,8 @@
   const stage = $('reactionStage');
   const videoHalf = $('reactionVideoHalf');
   const cameraHalf = $('reactionCameraHalf');
+  const videoFrame = $('reactionVideoFrame');
+  const cameraFrame = $('reactionCameraFrame');
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
@@ -15,7 +17,8 @@
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
-  let cameraFit = 'contain', videoFit = 'contain';
+  let sourceAspect = 9 / 16;
+  let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
@@ -37,16 +40,36 @@
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  function regions() {
-    if (outputLayout === 'horizontal') {
-      return {
-        camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height },
-        video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }
-      };
+  function fitSharedFrame(slot, aspect = sourceAspect) {
+    const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 9 / 16;
+    let w = slot.w;
+    let h = w / safeAspect;
+    if (h > slot.h) {
+      h = slot.h;
+      w = h * safeAspect;
     }
     return {
-      camera: { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 },
-      video: { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 }
+      x: slot.x + (slot.w - w) / 2,
+      y: slot.y + (slot.h - h) / 2,
+      w,
+      h
+    };
+  }
+
+  function regions() {
+    if (outputLayout === 'horizontal') {
+      const left = { x: 0, y: 0, w: canvas.width / 2, h: canvas.height };
+      const right = { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height };
+      return {
+        camera: fitSharedFrame(left),
+        video: fitSharedFrame(right)
+      };
+    }
+    const top = { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 };
+    const bottom = { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 };
+    return {
+      camera: fitSharedFrame(top),
+      video: fitSharedFrame(bottom)
     };
   }
 
@@ -56,7 +79,7 @@
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();
-    ctx.fillStyle = '#05070c';
+    ctx.fillStyle = '#000';
     ctx.fillRect(x, y, w, h);
 
     if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
@@ -80,6 +103,32 @@
     ctx.restore();
   }
 
+  function syncSharedPreviewFrameSize() {
+    const apply = (half, frame) => {
+      const rect = half.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      let w = rect.width;
+      let h = w / sourceAspect;
+      if (h > rect.height) {
+        h = rect.height;
+        w = h * sourceAspect;
+      }
+      frame.style.width = `${Math.max(1, w)}px`;
+      frame.style.height = `${Math.max(1, h)}px`;
+    };
+    apply(cameraHalf, cameraFrame);
+    apply(videoHalf, videoFrame);
+  }
+
+  function updateLayoutLabel() {
+    const dimensions = video.videoWidth && video.videoHeight
+      ? `${video.videoWidth}×${video.videoHeight}`
+      : '9:16';
+    $('reactionLayoutLabel').textContent = outputLayout === 'horizontal'
+      ? `Sortie 16:9 · 2 cadres identiques ${dimensions}`
+      : `Sortie 9:16 · 2 cadres identiques ${dimensions}`;
+  }
+
   function setOutputLayout(layout) {
     if (active()) return;
     outputLayout = layout === 'horizontal' ? 'horizontal' : 'vertical';
@@ -90,10 +139,11 @@
     stage.classList.toggle('layout-vertical', !horizontal);
     $('reactionOutputVertical').classList.toggle('active', !horizontal);
     $('reactionOutputHorizontal').classList.toggle('active', horizontal);
-    $('reactionLayoutLabel').textContent = horizontal
-      ? 'Sortie 16:9 · caméra à gauche · vidéo à droite'
-      : 'Sortie 9:16 · caméra en haut · vidéo en bas';
-    syncPreviewTransforms();
+    updateLayoutLabel();
+    requestAnimationFrame(() => {
+      syncSharedPreviewFrameSize();
+      syncPreviewTransforms();
+    });
     ensureDraw();
   }
 
@@ -118,6 +168,10 @@
       frameId = 0;
       return;
     }
+
+    ctx.fillStyle = '#05070c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     const r = regions();
     drawRegion(
       camera,
@@ -180,14 +234,20 @@
       status('Chargement de la vidéo…');
 
       await waitForFirstFrame();
+      if (video.videoWidth && video.videoHeight) {
+        sourceAspect = video.videoWidth / video.videoHeight;
+      }
       $('reactionVideoPlaceholder').classList.add('hidden');
+      updateLayoutLabel();
+      syncSharedPreviewFrameSize();
       syncPreviewTransforms();
       ensureDraw();
 
-      const ratio = video.videoWidth && video.videoHeight
-        ? `${video.videoWidth}×${video.videoHeight}`
-        : 'format natif';
-      status(`Vidéo prête en entier (${ratio}).`);
+      if (cameraStream) {
+        await openCameraStream();
+      }
+
+      status(`Vidéo prête. Caméra et vidéo utilisent le même cadre ${video.videoWidth}×${video.videoHeight}.`);
       $('reactionRecord').disabled = !cameraStream;
     } catch (error) {
       fileUrl = null;
@@ -204,10 +264,12 @@
       }
       if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
 
+      const portrait = sourceAspect <= 1;
       const videoConstraints = {
         facingMode: { ideal: 'user' },
-        width: { ideal: 1920 },
-        height: { ideal: 1920 }
+        width: { ideal: portrait ? 1080 : 1920 },
+        height: { ideal: portrait ? 1920 : 1080 },
+        aspectRatio: { ideal: sourceAspect }
       };
 
       try {
@@ -217,7 +279,7 @@
         });
       } catch (_) {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
+          video: { facingMode: { ideal: 'user' }, aspectRatio: { ideal: sourceAspect } },
           audio: false
         });
         status('Caméra active. Micro non autorisé : la prise sera sans ta voix.');
@@ -226,14 +288,17 @@
       camera.srcObject = cameraStream;
       await camera.play();
       cameraPanX = cameraPanY = 0;
-      cameraFit = 'contain';
+      cameraFit = 'cover';
       $('reactionCameraZoom').value = '100';
+      syncSharedPreviewFrameSize();
       syncPreviewTransforms();
       $('reactionCameraPlaceholder').classList.add('hidden');
       $('reactionCamera').textContent = '✓ Caméra active';
       $('reactionRecord').disabled = !fileUrl;
       ensureDraw();
-      if (cameraStream.getAudioTracks().length) status('Caméra et micro prêts. Image complète.');
+      if (cameraStream.getAudioTracks().length) {
+        status('Caméra et micro prêts. Même cadre que la vidéo importée.');
+      }
     } catch (error) {
       cameraStream = null;
       camera.srcObject = null;
@@ -332,6 +397,7 @@
         const blob = new Blob(chunks, { type: mimeType });
         const suffix = outputLayout === 'horizontal' ? '16x9' : '9x16';
         const filename = `Remix-Reaction-${suffix}-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
+
         try {
           status('Enregistrement terminé. Sauvegarde…');
           await saveReactionBlob(blob, filename);
@@ -354,7 +420,7 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} en cours.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · deux cadres strictement identiques.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
@@ -423,12 +489,15 @@
         videoPanX += dx;
         videoPanY += dy;
       }
+
       drag.x = event.clientX;
       drag.y = event.clientY;
       syncPreviewTransforms();
     });
 
-    const stop = () => { if (drag?.target === target) drag = null; };
+    const stop = () => {
+      if (drag?.target === target) drag = null;
+    };
     element.addEventListener('pointerup', stop);
     element.addEventListener('pointercancel', stop);
   }
@@ -450,6 +519,7 @@
     }
 
     if (reactionMode) {
+      requestAnimationFrame(syncSharedPreviewFrameSize);
       ensureDraw();
       syncPreviewTransforms();
       stopTimelinePreview?.(true);
@@ -470,6 +540,7 @@
     if (!active()) $('reactionInput').click();
   });
   $('reactionCamera').addEventListener('click', startCamera);
+
   $('reactionCameraQuick').addEventListener('click', (event) => {
     event.stopPropagation();
     startCamera();
@@ -496,10 +567,12 @@
   });
   video.addEventListener('loadeddata', () => {
     $('reactionVideoPlaceholder').classList.add('hidden');
+    syncSharedPreviewFrameSize();
     ensureDraw();
   });
   camera.addEventListener('loadeddata', () => {
     $('reactionCameraPlaceholder').classList.add('hidden');
+    syncSharedPreviewFrameSize();
   });
 
   $('reactionBack').addEventListener('click', () => {
@@ -543,8 +616,8 @@
   });
   $('reactionReset').addEventListener('click', resetVideoPosition);
 
-  bindDrag(cameraHalf, 'camera');
-  bindDrag(videoHalf, 'video');
+  bindDrag(cameraFrame, 'camera');
+  bindDrag(videoFrame, 'video');
 
   $('editorTab').addEventListener('click', () => showTab('editor'));
   $('interviewTab').addEventListener('click', () => {
@@ -555,7 +628,10 @@
   $('reactionTab').addEventListener('click', () => showTab('reaction'));
 
   setOutputLayout('vertical');
-  window.addEventListener('resize', syncPreviewTransforms);
+  window.addEventListener('resize', () => {
+    syncSharedPreviewFrameSize();
+    syncPreviewTransforms();
+  });
   window.addEventListener('beforeunload', () => {
     cameraStream?.getTracks().forEach((track) => track.stop());
   });

@@ -21,7 +21,8 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
   'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick',
-  'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionOutputVertical', 'reactionOutputHorizontal',
+  'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionCameraFrame', 'reactionVideoFrame',
+  'reactionOutputVertical', 'reactionOutputHorizontal',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
   'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
@@ -33,10 +34,11 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
   'video.currentTime', 'MediaRecorder.isTypeSupported', "mimeType.startsWith('video/mp4')",
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
-  'requestReactionPermissions', "cameraFit = 'contain'", "videoFit = 'contain'", "videoFit = 'cover'",
+  'requestReactionPermissions', "cameraFit = 'cover'", "videoFit = 'contain'", "videoFit = 'cover'",
+  'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'syncSharedPreviewFrameSize',
   "setOutputLayout('horizontal')", "setOutputLayout('vertical')", 'canvas.width = horizontal ? 1920 : 1080',
-  'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraHalf, 'camera')", "bindDrag(videoHalf, 'video')",
-  'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
+  'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraFrame, 'camera')", "bindDrag(videoFrame, 'video')",
+  'aspectRatio: { ideal: sourceAspect }', 'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
   "$('reactionVideoPlaceholder').addEventListener('click'"]) {
   if (!reaction.includes(marker)) throw new Error(`Enregistrement incomplet : ${marker}`);
 }
@@ -78,12 +80,13 @@ if (!html.includes('reaction-record-controls') || !html.includes('>● REC</butt
 if (!html.includes('width="1080" height="1920"'))
   throw new Error('Le canvas Réaction doit démarrer en 1080x1920.');
 if (!reaction.includes("outputLayout === 'horizontal'") ||
-    !reaction.includes("camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height }") ||
-    !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
-  throw new Error('Le mode 16:9 côte à côte doit être réellement rendu dans le canvas.');
+    !reaction.includes('fitSharedFrame(left)') ||
+    !reaction.includes('fitSharedFrame(right)'))
+  throw new Error('Le mode 16:9 doit utiliser deux cadres de taille strictement identique.');
 if (!html.includes('sources complètes 9:16 / 19:9') ||
-    !html.includes('9:16 vertical') || !html.includes('16:9 horizontal'))
-  throw new Error('Le choix de format final et le respect des formats source doivent être visibles.');
+    !html.includes('9:16 vertical') || !html.includes('16:9 horizontal') ||
+    !html.includes('même cadre que la vidéo'))
+  throw new Error('Le choix de format final et le cadrage identique caméra/vidéo doivent être visibles.');
 
 if (!read('style.css').includes('height:clamp(250px,42dvh,320px)'))
   throw new Error('L’aperçu Réaction doit être compact sur téléphone.');
@@ -91,4 +94,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction dual-screen complète, sorties 9:16/16:9, cadrages indépendants et mise à jour signée contrôlés.');
+console.log('Réaction corrigée : caméra et vidéo ont le même cadre source, sorties 9:16/16:9 et mise à jour signée contrôlées.');
