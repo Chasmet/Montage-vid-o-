@@ -13,7 +13,8 @@
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-  let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
+  let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micInput, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
+  let nativeMicActive = false, usedNativeMic = false, nativeMicNextTime = 0, nativeMicFrames = 0, nativeMicSignal = false;
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
@@ -478,6 +479,44 @@
       : 'Micro renforcé avec compression voix et réduction des graves.';
   }
 
+  // Android's native microphone is independent of the imported <video> element.
+  // Its PCM is scheduled on the same AudioContext clock as the exported video mix.
+  window.onNativeReactionAudio = (encoded, sampleRate) => {
+    if (!nativeMicActive || !active() || !audio || !micInput || !encoded) return;
+    const bytes = atob(encoded);
+    const length = Math.floor(bytes.length / 2);
+    if (!length) return;
+    const buffer = audio.createBuffer(1, length, sampleRate);
+    const samples = buffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 0; i < length; i += 1) {
+      const value = (bytes.charCodeAt(i * 2) | bytes.charCodeAt(i * 2 + 1) << 8) << 16 >> 16;
+      samples[i] = value / 32768;
+      sum += samples[i] * samples[i];
+    }
+    const rms = Math.sqrt(sum / length);
+    nativeMicFrames += 1;
+    if (rms > 0.0001) nativeMicSignal = true;
+    if (nativeMicFrames % 8 === 0) {
+      $('reactionMicSignal').textContent = rms > 0.0001
+        ? `Micro actif · niveau ${Math.min(100, Math.round(rms * 900))}%`
+        : 'Micro : aucun signal détecté';
+    }
+    if (nativeMicFrames === 50 && !nativeMicSignal) {
+      status('Le microphone ne fournit aucun son. Vérifie son autorisation Android avant de continuer.');
+    }
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.connect(micInput);
+    source.onended = () => source.disconnect();
+    const now = audio.currentTime;
+    if (nativeMicNextTime < now + 0.05 || nativeMicNextTime > now + 0.35) {
+      nativeMicNextTime = now + 0.07;
+    }
+    source.start(nativeMicNextTime);
+    nativeMicNextTime += buffer.duration;
+  };
+
   async function startRecording() {
     if (!fileUrl || !cameraStream || active()) return;
     try {
@@ -485,7 +524,6 @@
         throw new Error('Enregistrement Split Screen non pris en charge par cet appareil.');
       }
 
-      await ensureDedicatedMicrophone();
       audio ??= new (window.AudioContext || window.webkitAudioContext)();
       await audio.resume();
       keepAudioEngineAlive();
@@ -509,7 +547,7 @@
 
       sourceGain.connect(masterCompressor);
 
-      micNode = audio.createMediaStreamSource(micStream);
+      micInput = audio.createGain();
       micHighpass = audio.createBiquadFilter();
       micHighpass.type = 'highpass';
       micHighpass.frequency.value = 80;
@@ -523,10 +561,24 @@
       micCompressor.release.value = 0.20;
 
       micGain = audio.createGain();
-      micNode.connect(micHighpass);
+      micInput.connect(micHighpass);
       micHighpass.connect(micCompressor);
       micCompressor.connect(micGain);
       micGain.connect(masterCompressor);
+
+      nativeMicActive = Boolean(window.Android?.startReactionMic?.());
+      usedNativeMic = nativeMicActive;
+      nativeMicFrames = 0;
+      nativeMicSignal = false;
+      nativeMicNextTime = 0;
+      $('reactionMicSignal').textContent = nativeMicActive
+        ? 'Micro Android actif · parle pour vérifier le niveau.'
+        : 'Micro navigateur actif · parle pour vérifier le niveau.';
+      if (!nativeMicActive) {
+        await ensureDedicatedMicrophone();
+        micNode = audio.createMediaStreamSource(micStream);
+        micNode.connect(micInput);
+      }
 
       setVolume();
       updateMicPriority(true);
@@ -554,8 +606,14 @@
       };
       recorder.onerror = () => status('Erreur d’encodage : vérifie l’espace disponible.');
       recorder.onstop = async () => {
+        nativeMicActive = false;
+        window.Android?.stopReactionMic?.();
+        $('reactionMicSignal').textContent = usedNativeMic
+          ? (nativeMicSignal ? 'Micro capté pendant cette prise.' : 'Aucun signal micro mesuré pendant cette prise.')
+          : 'Prise terminée avec le micro du navigateur.';
         picture.getTracks().forEach((track) => track.stop());
         try { micNode?.disconnect(); } catch (_) {}
+        try { micInput?.disconnect(); } catch (_) {}
         try { micHighpass?.disconnect(); } catch (_) {}
         try { micCompressor?.disconnect(); } catch (_) {}
         try { micGain?.disconnect(); } catch (_) {}
@@ -563,7 +621,7 @@
         try { keepAliveOscillator?.stop(); } catch (_) {}
         try { keepAliveOscillator?.disconnect(); } catch (_) {}
         try { keepAliveGain?.disconnect(); } catch (_) {}
-        micNode = micHighpass = micCompressor = micGain = masterCompressor = null;
+        micNode = micInput = micHighpass = micCompressor = micGain = masterCompressor = null;
         keepAliveOscillator = keepAliveGain = null;
         micStream?.getTracks?.().forEach((track) => track.stop());
         micStream = null;
@@ -611,6 +669,8 @@
       $('reactionPause').textContent = '⏸ Pause vidéo';
       status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'clean' ? 'Propre' : outputFraming === 'crop' ? 'Recadré' : 'Libre'} · MP4.`);
     } catch (error) {
+      nativeMicActive = false;
+      window.Android?.stopReactionMic?.();
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
       $('reactionFramingClean').disabled = false;
