@@ -17,6 +17,7 @@
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
+  let outputFraming = 'smart';
   let sourceAspect = 9 / 16;
   let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
@@ -69,6 +70,23 @@
     };
   }
 
+  function outputFrameForSlot(slot) {
+    if (outputFraming === 'fill') return { ...slot };
+    const base = fitSharedFrame(slot, sourceAspect);
+    if (outputFraming === 'smart') {
+      const factor = 1.28;
+      const w = base.w * factor;
+      const h = base.h * factor;
+      return {
+        x: slot.x + (slot.w - w) / 2,
+        y: slot.y + (slot.h - h) / 2,
+        w,
+        h
+      };
+    }
+    return base;
+  }
+
   function drawImageInRegion(element, region, scale, panX, panY, mirror = false) {
     const { x, y, w, h } = region;
     const dw = element.videoWidth * scale;
@@ -114,18 +132,31 @@
     ctx.restore();
   }
 
+  function previewFrameSize(rect) {
+    if (outputFraming === 'fill') {
+      return { w: rect.width, h: rect.height };
+    }
+    let w = rect.width;
+    let h = w / sourceAspect;
+    if (h > rect.height) {
+      h = rect.height;
+      w = h * sourceAspect;
+    }
+    if (outputFraming === 'smart') {
+      const factor = 1.28;
+      w *= factor;
+      h *= factor;
+    }
+    return { w, h };
+  }
+
   function syncSharedPreviewFrameSize() {
     const apply = (half, frame) => {
       const rect = half.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      let w = rect.width;
-      let h = w / sourceAspect;
-      if (h > rect.height) {
-        h = rect.height;
-        w = h * sourceAspect;
-      }
-      frame.style.width = `${Math.max(1, w)}px`;
-      frame.style.height = `${Math.max(1, h)}px`;
+      const size = previewFrameSize(rect);
+      frame.style.width = `${Math.max(1, size.w)}px`;
+      frame.style.height = `${Math.max(1, size.h)}px`;
     };
     apply(cameraHalf, cameraFrame);
     apply(videoHalf, videoFrame);
@@ -138,6 +169,35 @@
     $('reactionLayoutLabel').textContent = outputLayout === 'horizontal'
       ? `Sortie 16:9 · 2 cadres identiques ${dimensions}`
       : `Sortie 9:16 · 2 cadres identiques ${dimensions}`;
+  }
+
+  function setFramingMode(mode) {
+    if (active()) return;
+    outputFraming = ['full', 'fill', 'smart'].includes(mode) ? mode : 'smart';
+    $('reactionFramingSmart').classList.toggle('active', outputFraming === 'smart');
+    $('reactionFramingFull').classList.toggle('active', outputFraming === 'full');
+    $('reactionFramingFill').classList.toggle('active', outputFraming === 'fill');
+
+    if (outputFraming === 'fill') {
+      cameraFit = 'cover';
+      videoFit = 'cover';
+    } else {
+      cameraFit = 'cover';
+      videoFit = 'contain';
+    }
+
+    requestAnimationFrame(() => {
+      syncSharedPreviewFrameSize();
+      syncPreviewTransforms();
+    });
+    ensureDraw();
+
+    const label = outputFraming === 'smart'
+      ? 'Smart : bandes réduites, recadrage léger.'
+      : outputFraming === 'full'
+        ? 'Image entière : aucune partie coupée.'
+        : 'Plein écran : chaque moitié est remplie.';
+    status(label);
   }
 
   function setOutputLayout(layout) {
@@ -219,8 +279,8 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const slots = regions();
-    const cameraFrameRegion = fitSharedFrame(slots.camera, sourceAspect);
-    const videoFrameRegion = fitSharedFrame(slots.video, sourceAspect);
+    const cameraFrameRegion = outputFrameForSlot(slots.camera);
+    const videoFrameRegion = outputFrameForSlot(slots.video);
 
     drawBlurredSlotBackground(camera, slots.camera, true);
     drawBlurredSlotBackground(video, slots.video, false);
@@ -461,11 +521,17 @@
           $('reactionRecord').disabled = !cameraStream || !fileUrl;
           $('reactionOutputVertical').disabled = false;
           $('reactionOutputHorizontal').disabled = false;
+          $('reactionFramingSmart').disabled = false;
+          $('reactionFramingFull').disabled = false;
+          $('reactionFramingFill').disabled = false;
         }
       };
 
       $('reactionOutputVertical').disabled = true;
       $('reactionOutputHorizontal').disabled = true;
+      $('reactionFramingSmart').disabled = true;
+      $('reactionFramingFull').disabled = true;
+      $('reactionFramingFill').disabled = true;
       recorder.start(500);
       await video.play();
       recordingPaused = false;
@@ -473,10 +539,13 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · caméra et vidéo dans deux cadres identiques · MP4.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'smart' ? 'Smart' : outputFraming === 'full' ? 'Image entière' : 'Plein écran'} · MP4.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
+      $('reactionFramingSmart').disabled = false;
+      $('reactionFramingFull').disabled = false;
+      $('reactionFramingFill').disabled = false;
       if (active()) recorder.stop();
       status(`Enregistrement impossible : ${error.message}`);
     }
@@ -605,6 +674,9 @@
 
   $('reactionOutputVertical').addEventListener('click', () => setOutputLayout('vertical'));
   $('reactionOutputHorizontal').addEventListener('click', () => setOutputLayout('horizontal'));
+  $('reactionFramingSmart').addEventListener('click', () => setFramingMode('smart'));
+  $('reactionFramingFull').addEventListener('click', () => setFramingMode('full'));
+  $('reactionFramingFill').addEventListener('click', () => setFramingMode('fill'));
 
   $('reactionRecord').addEventListener('click', startRecording);
   $('reactionPause').addEventListener('click', pauseRecording);
@@ -681,6 +753,7 @@
   $('reactionTab').addEventListener('click', () => showTab('reaction'));
 
   setOutputLayout('vertical');
+  setFramingMode('smart');
   window.addEventListener('resize', () => {
     syncSharedPreviewFrameSize();
     syncPreviewTransforms();

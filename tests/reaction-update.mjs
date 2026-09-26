@@ -22,7 +22,7 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
   'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick',
   'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionCameraFrame', 'reactionVideoFrame',
-  'reactionOutputVertical', 'reactionOutputHorizontal',
+  'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingSmart', 'reactionFramingFull', 'reactionFramingFill',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
   'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
@@ -35,7 +35,7 @@ for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(vide
   'video.currentTime', 'MediaRecorder.isTypeSupported',
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
   'requestReactionPermissions', "cameraFit = 'cover'", "videoFit = 'contain'", "videoFit = 'cover'",
-  'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'syncSharedPreviewFrameSize',
+  'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'outputFrameForSlot', 'syncSharedPreviewFrameSize',
   "setOutputLayout('horizontal')", "setOutputLayout('vertical')", 'canvas.width = horizontal ? 1920 : 1080',
   'canvas.height = horizontal ? 1080 : 1920', "bindDrag(cameraFrame, 'camera')", "bindDrag(videoFrame, 'video')",
   'aspectRatio: { ideal: sourceAspect }', 'waitForFirstFrame', "$('reactionCameraPlaceholder').addEventListener('click', startCamera)",
@@ -85,11 +85,13 @@ if (!reaction.includes("outputLayout === 'horizontal'") ||
   throw new Error('L’export 16:9 doit remplir le canvas avec deux moitiés strictement identiques.');
 if (!reaction.includes('drawBlurredSlotBackground') ||
     !reaction.includes('drawForegroundInSharedFrame') ||
-    !reaction.includes('const cameraFrameRegion = fitSharedFrame(slots.camera, sourceAspect)') ||
-    !reaction.includes('const videoFrameRegion = fitSharedFrame(slots.video, sourceAspect)') ||
+    !reaction.includes('const cameraFrameRegion = outputFrameForSlot(slots.camera)') ||
+    !reaction.includes('const videoFrameRegion = outputFrameForSlot(slots.video)') ||
+    !reaction.includes("outputFraming === 'smart'") ||
+    !reaction.includes('const factor = 1.28') ||
     !reaction.includes('cameraFit,\n      true') ||
     !reaction.includes('videoFit,\n      false'))
-  throw new Error('Caméra et vidéo doivent être rendues dans deux cadres strictement identiques avec fond flouté.');
+  throw new Error('Les modes Entière, Smart et Plein écran doivent contrôler le cadrage final.');
 if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
   throw new Error('L’export Réaction doit être MP4 direct sans fallback WebM.');
 
@@ -104,4 +106,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction corrigée : caméra verticale dans le même cadre que la vidéo, fond flouté, MP4 direct et mise à jour signée contrôlés.');
+console.log('Réaction améliorée : modes Smart/Entière/Plein écran, cadres synchronisés, MP4 direct et mise à jour signée contrôlés.');

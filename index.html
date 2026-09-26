@@ -98,6 +98,11 @@
         <button id="reactionOutputVertical" class="active" type="button">9:16 vertical</button>
         <button id="reactionOutputHorizontal" type="button">16:9 horizontal</button>
       </div>
+      <div class="reaction-framing-controls" aria-label="Cadrage de sortie">
+        <button id="reactionFramingSmart" class="active" type="button">Smart</button>
+        <button id="reactionFramingFull" type="button">Image entière</button>
+        <button id="reactionFramingFill" type="button">Plein écran</button>
+      </div>
       <div id="reactionStage" class="reaction-stage layout-vertical" aria-label="Aperçu de la réaction">
         <div id="reactionCameraHalf" class="reaction-half reaction-camera-half">
           <div id="reactionCameraFrame" class="reaction-media-frame">
@@ -154,7 +159,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">La caméra est recadrée dans le même cadre vertical que la vidéo. Les deux gardent exactement la même taille dans l’export.</small>
+      <small class="reaction-hint">Smart réduit fortement les bandes latérales avec un recadrage léger. « Image entière » ne coupe rien. « Plein écran » remplit totalement chaque moitié.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 
