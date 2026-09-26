@@ -157,11 +157,14 @@ vm.runInContext('updateMicPriority()', context);
 assert.equal(gain.value, 0, 'Reprendre la vidéo doit recouper le micro.');
 assert.equal(gain.lastAction, 'set', 'La coupure du micro doit être immédiate, sans chevauchement audible.');
 
-// The wide sensor picture must reach both preview and recorded canvas without
-// the old 9:16 sensor crop or a second 9:16 cover crop.
-assert.ok(reaction.includes("let cameraFit = 'contain', videoFit = 'contain'"));
-assert.ok(reaction.includes("cameraFit = 'contain';\n      $('reactionCameraZoom').value = '100'"));
+// The phone may provide a landscape 4:3 camera stream even when portrait was
+// requested. Default to a full-height crop, while keeping the wide option.
+assert.ok(reaction.includes("let cameraFit = 'cover', videoFit = 'contain'"));
+assert.ok(reaction.includes("cameraFit = 'cover';\n      $('reactionCameraZoom').value = '100'"));
 assert.ok(reaction.includes("video: { facingMode: { ideal: 'user' } }"));
+assert.ok(reaction.includes('camera.style.objectFit = cameraFit'));
+assert.ok(reaction.includes('      cameraFit,\n      true'));
+assert.ok(html.includes('id="reactionCameraFitCover" class="active"'));
 for (const zoom of [80, 100, 150]) assert.ok(html.includes(`data-reaction-camera-zoom="${zoom}"`));
 const drawStart = reaction.indexOf('  function drawForegroundInSharedFrame(');
 const drawEnd = reaction.indexOf('  function draw()', drawStart);
@@ -186,6 +189,13 @@ assert.equal(draws.at(-1).height, 720, 'La caméra 4:3 doit rester entière dans
 vm.runInContext('drawForegroundInSharedFrame(sensor, frame, 0.8, 0, 0, "contain")',
   vm.createContext({ ...drawingContext, sensor, frame }));
 assert.equal(draws.at(-1).width, 432, 'Le bouton 0,8× doit réduire le cadrage enregistré.');
+const landscapeSensor = { readyState: 4, videoWidth: 1280, videoHeight: 960 };
+vm.runInContext('drawForegroundInSharedFrame(landscapeSensor, frame, 1, 0, 0, "contain")',
+  vm.createContext({ ...drawingContext, landscapeSensor, frame }));
+assert.equal(draws.at(-1).height, 405, 'Le mode champ large produit les bandes noires vues sur le téléphone.');
+vm.runInContext('drawForegroundInSharedFrame(landscapeSensor, frame, 1, 0, 0, "cover")',
+  vm.createContext({ ...drawingContext, landscapeSensor, frame }));
+assert.equal(draws.at(-1).height, 960, 'Le mode caméra par défaut doit remplir toute sa moitié comme la vidéo.');
 
 
 

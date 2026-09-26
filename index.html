@@ -152,8 +152,8 @@
           <div class="reaction-source-title"><strong>Caméra</strong><span>même cadre que la vidéo</span></div>
           <label>Zoom caméra <span id="reactionCameraZoomValue">1,0×</span><input id="reactionCameraZoom" type="range" min="80" max="250" value="100" /></label>
           <div class="reaction-fit-controls">
-            <button id="reactionCameraFitContain" class="active" type="button">Champ large</button>
-            <button id="reactionCameraFitCover" type="button">Plein cadre</button>
+            <button id="reactionCameraFitContain" type="button">Champ large</button>
+            <button id="reactionCameraFitCover" class="active" type="button">Même taille vidéo</button>
             <button id="reactionCameraReset" type="button">Recentrer</button>
           </div>
         </div>
@@ -167,7 +167,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">La caméra démarre en champ large pour éviter le recadrage du visage. Le 0,8× réduit l’image dans le cadre ; l’angle réel dépend de la caméra accessible sur ton téléphone. Le zoom et le cadrage sont conservés dans la vidéo exportée.</small>
+      <small class="reaction-hint">Même taille vidéo : la caméra remplit toute sa moitié, avec un recadrage sur les côtés. Champ large : toute l’image reste visible avec des bandes noires si les proportions diffèrent. Le 0,8× réduit l’image dans le cadre ; le zoom choisi est conservé à l’export.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 

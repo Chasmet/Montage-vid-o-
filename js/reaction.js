@@ -20,7 +20,7 @@
   let outputLayout = 'vertical';
   let outputFraming = 'clean';
   let sourceAspect = 9 / 16;
-  let cameraFit = 'contain', videoFit = 'contain';
+  let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
 
   const status = (message) => { $('reactionStatus').textContent = message; };
@@ -151,7 +151,7 @@
     $('reactionFramingFree').classList.toggle('active', outputFraming === 'free');
 
     if (outputFraming === 'clean') {
-      cameraFit = 'contain';
+      cameraFit = 'cover';
       videoFit = 'contain';
       cameraPanX = cameraPanY = videoPanX = videoPanY = 0;
       $('reactionCameraZoom').value = '100';
@@ -342,8 +342,8 @@
       if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
 
       // A 9:16 camera constraint can crop the sensor before CSS or the canvas
-      // sees it. Capture the usual full 4:3 sensor image, then fit it in the
-      // chosen reaction frame without throwing away the sides.
+      // sees it. Keep the wider sensor stream so users can choose between a
+      // full-height crop and the uncropped image in the same output frame.
       const portrait = sourceAspect <= 1;
       const videoConstraints = {
         facingMode: { ideal: 'user' },
@@ -367,7 +367,7 @@
       camera.srcObject = cameraStream;
       await camera.play();
       cameraPanX = cameraPanY = 0;
-      cameraFit = 'contain';
+      cameraFit = 'cover';
       $('reactionCameraZoom').value = '100';
       syncSharedPreviewFrameSize();
       syncPreviewTransforms();
