@@ -68,7 +68,11 @@ if (!mainActivity.includes('REACTION_PERMISSION_REQUEST') || !mainActivity.inclu
   throw new Error('Le bouton Réaction doit demander explicitement Caméra + Microphone à Android.');
 if (!manifest.includes('android:icon="@drawable/app_logo"') || !appManifest.includes('app-logo.webp'))
   throw new Error('Le nouveau logo doit être intégré à Android et au manifeste web.');
+if (!html.includes('reaction-record-controls') || !html.includes('>● REC</button>'))
+  throw new Error('Les commandes d’enregistrement doivent être immédiatement sous l’aperçu.');
 if (!html.includes('width="1080" height="1920"'))
   throw new Error('Le rendu Réaction doit exporter en canvas vertical 1080x1920.');
 
-console.log('Réaction 9:16, aperçu 50/50, permissions, logo et mise à jour contrôlés.');
+if (!read('style.css').includes('height:clamp(250px,42dvh,320px)'))
+  throw new Error('L’aperçu Réaction doit être compact sur téléphone.');
+console.log('Réaction compacte, aperçu 50/50, commandes directes, permissions, logo et mise à jour contrôlés.');
