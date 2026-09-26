@@ -97,12 +97,18 @@ if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suf
 if (reaction.includes('recorder.pause()') || reaction.includes('recorder.resume()'))
   throw new Error('Pause vidéo ne doit jamais suspendre MediaRecorder ni couper le micro.');
 for (const marker of ['createBiquadFilter()', 'createDynamicsCompressor()', 'micHighpass.frequency.value = 80',
-  'micCompressor.threshold.value = -24', 'micGain = audio.createGain()', 'priorityBoost = video.paused && active() ? 1.35 : 1',
-  "status('Vidéo en pause. REC continue et ton micro passe en priorité.')", 'audioBitsPerSecond: 192_000']) {
+  'micCompressor.threshold.value = -26', 'micGain = audio.createGain()', 'priorityBoost = video.paused && active() ? 1.35 : 1',
+  'ensureDedicatedMicrophone()', "getUserMedia({ video: false, audio: constraints })", 'createMediaStreamSource(micStream)',
+  'keepAudioEngineAlive()', 'keepAliveOscillator.frequency.value = 20', 'masterCompressor.threshold.value = -8',
+  "status('Vidéo en pause. REC continue et le micro dédié reste enregistré.')", 'audioBitsPerSecond: 192_000']) {
   if (!reaction.includes(marker)) throw new Error(`Chaîne audio Réaction incomplète : ${marker}`);
 }
 if (!html.includes('id="reactionMicGain"') || !html.includes('value="180"') || !html.includes('>⏸ Pause vidéo</button>'))
   throw new Error('Les réglages de voix et la pause vidéo doivent être explicites dans l’interface.');
+if (!reaction.includes('video: videoConstraints,\n          audio: false') ||
+    reaction.includes('createMediaStreamSource(cameraStream)'))
+  throw new Error('Le micro doit être indépendant de la caméra et ne jamais dépendre de cameraStream.');
+
 
 
 if (!html.includes('sources complètes 9:16 / 19:9') ||
@@ -116,4 +122,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction audio : voix renforcée/compressée, micro prioritaire pendant pause vidéo, MP4 direct et mise à jour signée contrôlés.');
+console.log('Réaction audio : micro dédié indépendant, moteur audio maintenu pendant pause, voix renforcée et MP4 direct contrôlés.');

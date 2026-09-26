@@ -13,7 +13,7 @@
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-  let fileUrl, cameraStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micHighpass, micCompressor, micGain, mix;
+  let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
@@ -347,20 +347,13 @@
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: videoConstraints,
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: { ideal: 1 },
-            sampleRate: { ideal: 48000 }
-          }
+          audio: false
         });
       } catch (_) {
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'user' }, aspectRatio: { ideal: sourceAspect } },
           audio: false
         });
-        status('Caméra active. Micro non autorisé : la prise sera sans ta voix.');
       }
 
       camera.srcObject = cameraStream;
@@ -374,11 +367,11 @@
       $('reactionCamera').textContent = '✓ Caméra active';
       $('reactionRecord').disabled = !fileUrl;
       ensureDraw();
-      if (cameraStream.getAudioTracks().length) {
-        status('Caméra et micro prêts. Même cadre que la vidéo importée.');
-      }
+      status('Caméra prête. Le micro dédié s’ouvrira automatiquement au REC.');
     } catch (error) {
       cameraStream = null;
+      micStream?.getTracks?.().forEach((track) => track.stop());
+      micStream = null;
       camera.srcObject = null;
       $('reactionCameraPlaceholder').classList.remove('hidden');
       $('reactionCamera').textContent = '📷 Caméra';
@@ -412,6 +405,57 @@
     else video.volume = value;
   }
 
+  async function ensureDedicatedMicrophone() {
+    const existing = micStream?.getAudioTracks?.().find((track) => track.readyState === 'live');
+    if (existing) {
+      existing.enabled = true;
+      return micStream;
+    }
+
+    micStream?.getTracks?.().forEach((track) => track.stop());
+    micStream = null;
+
+    const constraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: { ideal: 1 },
+      sampleRate: { ideal: 48000 }
+    };
+
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: constraints });
+    } catch (_) {
+      micStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+    }
+
+    const track = micStream.getAudioTracks()[0];
+    if (!track || track.readyState !== 'live') {
+      micStream?.getTracks?.().forEach((item) => item.stop());
+      micStream = null;
+      throw new Error('Le microphone ne fournit aucune piste audio active.');
+    }
+    track.enabled = true;
+    return micStream;
+  }
+
+  function keepAudioEngineAlive() {
+    if (!audio || keepAliveOscillator) return;
+    keepAliveOscillator = audio.createOscillator();
+    keepAliveGain = audio.createGain();
+    keepAliveOscillator.frequency.value = 20;
+    keepAliveGain.gain.value = 0.000001;
+    keepAliveOscillator.connect(keepAliveGain);
+    keepAliveGain.connect(audio.destination);
+    keepAliveOscillator.start();
+  }
+
+  function ensureAudioEngineRunning() {
+    if (audio && audio.state !== 'running') {
+      audio.resume().catch(() => {});
+    }
+  }
+
   function desiredMicGain() {
     const base = Number($('reactionMicGain').value || 180) / 100;
     const priorityBoost = video.paused && active() ? 1.35 : 1;
@@ -419,6 +463,7 @@
   }
 
   function updateMicPriority(immediate = false) {
+    ensureAudioEngineRunning();
     if (!micGain || !audio) return;
     const target = desiredMicGain();
     const now = audio.currentTime;
@@ -440,8 +485,10 @@
         throw new Error('Enregistrement Split Screen non pris en charge par cet appareil.');
       }
 
+      await ensureDedicatedMicrophone();
       audio ??= new (window.AudioContext || window.webkitAudioContext)();
       await audio.resume();
+      keepAudioEngineAlive();
       sourceNode ??= audio.createMediaElementSource(video);
       video.volume = 1;
       sourceGain ??= audio.createGain();
@@ -451,28 +498,36 @@
       sourceGain.connect(audio.destination);
 
       mix = audio.createMediaStreamDestination();
-      sourceGain.connect(mix);
 
-      if (cameraStream.getAudioTracks().length) {
-        micNode = audio.createMediaStreamSource(cameraStream);
-        micHighpass = audio.createBiquadFilter();
-        micHighpass.type = 'highpass';
-        micHighpass.frequency.value = 80;
-        micHighpass.Q.value = 0.7;
+      masterCompressor = audio.createDynamicsCompressor();
+      masterCompressor.threshold.value = -8;
+      masterCompressor.knee.value = 8;
+      masterCompressor.ratio.value = 8;
+      masterCompressor.attack.value = 0.002;
+      masterCompressor.release.value = 0.16;
+      masterCompressor.connect(mix);
 
-        micCompressor = audio.createDynamicsCompressor();
-        micCompressor.threshold.value = -24;
-        micCompressor.knee.value = 18;
-        micCompressor.ratio.value = 4;
-        micCompressor.attack.value = 0.003;
-        micCompressor.release.value = 0.22;
+      sourceGain.connect(masterCompressor);
 
-        micGain = audio.createGain();
-        micNode.connect(micHighpass);
-        micHighpass.connect(micCompressor);
-        micCompressor.connect(micGain);
-        micGain.connect(mix);
-      }
+      micNode = audio.createMediaStreamSource(micStream);
+      micHighpass = audio.createBiquadFilter();
+      micHighpass.type = 'highpass';
+      micHighpass.frequency.value = 80;
+      micHighpass.Q.value = 0.7;
+
+      micCompressor = audio.createDynamicsCompressor();
+      micCompressor.threshold.value = -26;
+      micCompressor.knee.value = 16;
+      micCompressor.ratio.value = 5;
+      micCompressor.attack.value = 0.003;
+      micCompressor.release.value = 0.20;
+
+      micGain = audio.createGain();
+      micNode.connect(micHighpass);
+      micHighpass.connect(micCompressor);
+      micCompressor.connect(micGain);
+      micGain.connect(masterCompressor);
+
       setVolume();
       updateMicPriority(true);
 
@@ -504,8 +559,16 @@
         try { micHighpass?.disconnect(); } catch (_) {}
         try { micCompressor?.disconnect(); } catch (_) {}
         try { micGain?.disconnect(); } catch (_) {}
-        micNode = micHighpass = micCompressor = micGain = null;
-        try { sourceGain?.disconnect(mix); } catch (_) {}
+        try { masterCompressor?.disconnect(); } catch (_) {}
+        try { keepAliveOscillator?.stop(); } catch (_) {}
+        try { keepAliveOscillator?.disconnect(); } catch (_) {}
+        try { keepAliveGain?.disconnect(); } catch (_) {}
+        micNode = micHighpass = micCompressor = micGain = masterCompressor = null;
+        keepAliveOscillator = keepAliveGain = null;
+        micStream?.getTracks?.().forEach((track) => track.stop());
+        micStream = null;
+        try { sourceGain?.disconnect(); } catch (_) {}
+        sourceGain?.connect(audio.destination);
         mix = null;
 
         if (!chunks.length) {
@@ -554,6 +617,10 @@
       $('reactionFramingCrop').disabled = false;
       $('reactionFramingFree').disabled = false;
       if (active()) recorder.stop();
+      else {
+        micStream?.getTracks?.().forEach((track) => track.stop());
+        micStream = null;
+      }
       status(`Enregistrement impossible : ${error.message}`);
     }
   }
@@ -564,14 +631,16 @@
       recordingPaused = false;
       video.play().catch(() => {});
       $('reactionPause').textContent = '⏸ Pause vidéo';
+      ensureAudioEngineRunning();
       updateMicPriority();
-      status('Vidéo reprise. Le micro reste actif.');
+      status('Vidéo reprise. Le micro dédié reste actif.');
     } else {
       video.pause();
       recordingPaused = true;
       $('reactionPause').textContent = '▶ Reprendre vidéo';
+      ensureAudioEngineRunning();
       updateMicPriority();
-      status('Vidéo en pause. REC continue et ton micro passe en priorité.');
+      status('Vidéo en pause. REC continue et le micro dédié reste enregistré.');
     }
   }
 
@@ -697,6 +766,7 @@
     if (active()) {
       recordingPaused = false;
       $('reactionPause').textContent = '⏸ Pause vidéo';
+      ensureAudioEngineRunning();
       updateMicPriority();
     }
   });
@@ -705,6 +775,7 @@
     if (active()) {
       recordingPaused = true;
       $('reactionPause').textContent = '▶ Reprendre vidéo';
+      ensureAudioEngineRunning();
       updateMicPriority();
     }
   });
@@ -782,5 +853,6 @@
   });
   window.addEventListener('beforeunload', () => {
     cameraStream?.getTracks().forEach((track) => track.stop());
+    micStream?.getTracks?.().forEach((track) => track.stop());
   });
 })();
