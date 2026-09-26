@@ -92,7 +92,7 @@ for (const marker of auditMarkers) {
   if (!files.audit.includes(marker)) throw new Error(`Protection finale manquante : ${marker}`);
 }
 if (files.audit.includes("const blobKey = 'source-video'")) throw new Error('Une clé fixe casserait encore l’annulation après un nouvel import.');
-for (const marker of ['remix-studio-v14-reaction-hardening-3-0', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/mode2-sync.js', './js/export-watchdog.js']) {
+for (const marker of ['remix-studio-v15-reaction-wide-camera', './js/final-audit.js', './js/insertion-cursor.js', './js/export-mode2.js', './js/mode2-sync.js', './js/export-watchdog.js']) {
   if (!serviceWorker.includes(marker)) throw new Error(`Cache final incomplet : ${marker}`);
 }
 

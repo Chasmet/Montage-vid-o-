@@ -118,6 +118,11 @@
         </div>
         <div class="reaction-divider" aria-hidden="true"></div>
         <button id="reactionCameraQuick" class="reaction-quick reaction-quick-top" type="button">📷 Caméra</button>
+        <div class="reaction-camera-zoom-quick" aria-label="Zoom de la caméra">
+          <button type="button" data-reaction-camera-zoom="80">0,8×</button>
+          <button type="button" data-reaction-camera-zoom="100" class="active">1×</button>
+          <button type="button" data-reaction-camera-zoom="150">1,5×</button>
+        </div>
         <button id="reactionImportQuick" class="reaction-quick reaction-quick-bottom" type="button">＋ Vidéo</button>
         <canvas id="reactionCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
       </div>
@@ -145,10 +150,10 @@
       <div class="reaction-source-tools">
         <div class="reaction-source-card">
           <div class="reaction-source-title"><strong>Caméra</strong><span>même cadre que la vidéo</span></div>
-          <label>Zoom <input id="reactionCameraZoom" type="range" min="100" max="250" value="100" /></label>
+          <label>Zoom caméra <span id="reactionCameraZoomValue">1,0×</span><input id="reactionCameraZoom" type="range" min="80" max="250" value="100" /></label>
           <div class="reaction-fit-controls">
-            <button id="reactionCameraFitContain" type="button">Entière</button>
-            <button id="reactionCameraFitCover" class="active" type="button">9:16 plein cadre</button>
+            <button id="reactionCameraFitContain" class="active" type="button">Champ large</button>
+            <button id="reactionCameraFitCover" type="button">Plein cadre</button>
             <button id="reactionCameraReset" type="button">Recentrer</button>
           </div>
         </div>
@@ -162,7 +167,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">Propre : aucun flou, aucune duplication, aucun étirement. Fond uni noir et deux cadres nets. Recadré remplit les moitiés. Libre laisse tes réglages manuels.</small>
+      <small class="reaction-hint">La caméra démarre en champ large pour éviter le recadrage du visage. Le 0,8× réduit l’image dans le cadre ; l’angle réel dépend de la caméra accessible sur ton téléphone. Le zoom et le cadrage sont conservés dans la vidéo exportée.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 
