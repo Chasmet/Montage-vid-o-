@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
 
 const read = (path) => readFileSync(path, 'utf8');
 const html = read('index.html');
@@ -98,10 +100,10 @@ if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suf
 if (reaction.includes('recorder.pause()') || reaction.includes('recorder.resume()'))
   throw new Error('Pause vidéo ne doit jamais suspendre MediaRecorder ni couper le micro.');
 for (const marker of ['createBiquadFilter()', 'createDynamicsCompressor()', 'micHighpass.frequency.value = 80',
-  'micCompressor.threshold.value = -26', 'micGain = audio.createGain()', 'priorityBoost = video.paused && active() ? 1.35 : 1',
+  'micCompressor.threshold.value = -26', 'micGain = audio.createGain()',
   'ensureDedicatedMicrophone()', "getUserMedia({ video: false, audio: constraints })", 'createMediaStreamSource(micStream)',
   'keepAudioEngineAlive()', 'keepAliveOscillator.frequency.value = 20', 'masterCompressor.threshold.value = -8',
-  "status('Vidéo en pause. REC continue et le micro dédié reste enregistré.')", 'audioBitsPerSecond: 192_000']) {
+  "status('Vidéo en pause. Seul le micro est enregistré.')", 'audioBitsPerSecond: 192_000']) {
   if (!reaction.includes(marker)) throw new Error(`Chaîne audio Réaction incomplète : ${marker}`);
 }
 if (!html.includes('id="reactionMicGain"') || !html.includes('value="180"') || !html.includes('>⏸ Pause vidéo</button>'))
@@ -126,6 +128,34 @@ for (const marker of ['window.onNativeReactionAudio = (encoded, sampleRate)',
   if (!reaction.includes(marker)) throw new Error(`Mixage micro pendant pause incomplet : ${marker}`);
 }
 if (!html.includes('id="reactionMicSignal"')) throw new Error('Le niveau du micro doit rester visible pendant la prise.');
+
+// Exercise the actual gain policy across playback -> pause -> playback.
+const policyStart = reaction.indexOf('  function desiredMicGain()');
+const policyEnd = reaction.indexOf("  // Android's native microphone", policyStart);
+assert.ok(policyStart >= 0 && policyEnd > policyStart);
+const gain = {
+  value: 0, lastAction: '',
+  cancelScheduledValues() {},
+  setValueAtTime(value) { this.value = value; this.lastAction = 'set'; },
+  linearRampToValueAtTime(value) { this.value = value; this.lastAction = 'ramp'; }
+};
+const hint = { textContent: '' };
+const context = vm.createContext({
+  video: { paused: false }, active: () => true,
+  $: (id) => id === 'reactionMicGain' ? { value: '180' } : hint,
+  micGain: { gain }, audio: { currentTime: 10 }, ensureAudioEngineRunning() {}
+});
+vm.runInContext(reaction.slice(policyStart, policyEnd), context);
+vm.runInContext('updateMicPriority()', context);
+assert.equal(gain.value, 0, 'La vidéo en lecture doit couper entièrement le micro.');
+context.video.paused = true;
+vm.runInContext('updateMicPriority()', context);
+assert.ok(gain.value > 1, 'La pause vidéo doit ouvrir automatiquement le micro.');
+assert.equal(gain.lastAction, 'ramp');
+context.video.paused = false;
+vm.runInContext('updateMicPriority()', context);
+assert.equal(gain.value, 0, 'Reprendre la vidéo doit recouper le micro.');
+assert.equal(gain.lastAction, 'set', 'La coupure du micro doit être immédiate, sans chevauchement audible.');
 
 
 
