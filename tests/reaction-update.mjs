@@ -80,9 +80,14 @@ if (!html.includes('reaction-record-controls') || !html.includes('>● REC</butt
 if (!html.includes('width="1080" height="1920"'))
   throw new Error('Le canvas Réaction doit démarrer en 1080x1920.');
 if (!reaction.includes("outputLayout === 'horizontal'") ||
-    !reaction.includes('fitSharedFrame(left)') ||
-    !reaction.includes('fitSharedFrame(right)'))
-  throw new Error('Le mode 16:9 doit utiliser deux cadres de taille strictement identique.');
+    !reaction.includes("camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height }") ||
+    !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
+  throw new Error('L’export 16:9 doit remplir le canvas avec deux moitiés strictement identiques.');
+if (!reaction.includes("'cover',\n      true") || !reaction.includes("'cover',\n      false"))
+  throw new Error('L’export doit forcer le remplissage plein écran des deux sources.');
+if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
+  throw new Error('L’export Réaction doit être MP4 direct sans fallback WebM.');
+
 if (!html.includes('sources complètes 9:16 / 19:9') ||
     !html.includes('9:16 vertical') || !html.includes('16:9 horizontal') ||
     !html.includes('même cadre que la vidéo'))
@@ -94,4 +99,4 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
-console.log('Réaction corrigée : caméra et vidéo ont le même cadre source, sorties 9:16/16:9 et mise à jour signée contrôlées.');
+console.log('Réaction corrigée : sortie plein écran sans bandes noires, MP4 direct, deux moitiés identiques et mise à jour signée contrôlées.');

@@ -58,18 +58,14 @@
 
   function regions() {
     if (outputLayout === 'horizontal') {
-      const left = { x: 0, y: 0, w: canvas.width / 2, h: canvas.height };
-      const right = { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height };
       return {
-        camera: fitSharedFrame(left),
-        video: fitSharedFrame(right)
+        camera: { x: 0, y: 0, w: canvas.width / 2, h: canvas.height },
+        video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }
       };
     }
-    const top = { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 };
-    const bottom = { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 };
     return {
-      camera: fitSharedFrame(top),
-      video: fitSharedFrame(bottom)
+      camera: { x: 0, y: 0, w: canvas.width, h: canvas.height / 2 },
+      video: { x: 0, y: canvas.height / 2, w: canvas.width, h: canvas.height / 2 }
     };
   }
 
@@ -179,7 +175,7 @@
       Number($('reactionCameraZoom').value) / 100,
       cameraPanX,
       cameraPanY,
-      cameraFit,
+      'cover',
       true
     );
     drawRegion(
@@ -188,7 +184,7 @@
       Number($('reactionZoom').value) / 100,
       videoPanX,
       videoPanY,
-      videoFit,
+      'cover',
       false
     );
 
@@ -364,11 +360,12 @@
       const stream = new MediaStream([...picture.getVideoTracks(), ...mix.stream.getAudioTracks()]);
       const mimeType = [
         'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-        'video/mp4',
-        'video/webm;codecs=vp8,opus',
-        'video/webm'
+        'video/mp4;codecs=avc1.42E01E',
+        'video/mp4'
       ].find((type) => MediaRecorder.isTypeSupported(type));
-      if (!mimeType) throw new Error('Aucun encodeur vidéo compatible.');
+      if (!mimeType) {
+        throw new Error('Export MP4 direct non pris en charge par cet appareil.');
+      }
 
       chunks = [];
       recorder = new MediaRecorder(stream, {
@@ -396,7 +393,7 @@
 
         const blob = new Blob(chunks, { type: mimeType });
         const suffix = outputLayout === 'horizontal' ? '16x9' : '9x16';
-        const filename = `Remix-Reaction-${suffix}-${Date.now()}.${mimeType.startsWith('video/mp4') ? 'mp4' : 'webm'}`;
+        const filename = `Remix-Reaction-${suffix}-${Date.now()}.mp4`;
 
         try {
           status('Enregistrement terminé. Sauvegarde…');
@@ -420,7 +417,7 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · deux cadres strictement identiques.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · plein écran MP4 · deux moitiés identiques.`);
     } catch (error) {
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
