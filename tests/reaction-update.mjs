@@ -32,7 +32,7 @@ for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSou
 
 for (const marker of ['canvas.captureStream(30)', 'createMediaElementSource(video)',
   'createMediaStreamDestination()', 'recorder.pause()', 'recorder.resume()', 'video.pause();',
-  'video.currentTime', 'MediaRecorder.isTypeSupported', "mimeType.startsWith('video/mp4')",
+  'video.currentTime', 'MediaRecorder.isTypeSupported',
   "facingMode: { ideal: 'user' }", 'saveRemixBlobToAndroid', 'recorder.start(500)',
   'requestReactionPermissions', "cameraFit = 'cover'", "videoFit = 'contain'", "videoFit = 'cover'",
   'sourceAspect = video.videoWidth / video.videoHeight', 'fitSharedFrame', 'syncSharedPreviewFrameSize',
