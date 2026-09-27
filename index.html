@@ -99,7 +99,8 @@
         <button id="reactionOutputHorizontal" type="button">16:9 horizontal</button>
       </div>
       <div class="reaction-framing-controls" aria-label="Cadrage de sortie">
-        <button id="reactionFramingClean" class="active" type="button">Propre</button>
+        <button id="reactionFramingExtend" class="active" type="button">Sans bandes</button>
+        <button id="reactionFramingClean" type="button">Propre</button>
         <button id="reactionFramingCrop" type="button">Recadré</button>
         <button id="reactionFramingFree" type="button">Libre</button>
       </div>
@@ -167,7 +168,7 @@
           </div>
         </div>
       </div>
-      <small class="reaction-hint">Même taille vidéo : la caméra remplit toute sa moitié, avec un recadrage sur les côtés. Champ large : toute l’image reste visible avec des bandes noires si les proportions diffèrent. Le 0,8× réduit l’image dans le cadre ; le zoom choisi est conservé à l’export.</small>
+      <small class="reaction-hint">Sans bandes : la vidéo centrale garde ses proportions et son image entière ; ses bords sont prolongés sur les côtés pour remplir le 9:16. Même taille vidéo recadre les côtés de la caméra ; Champ large la montre entière. Le cadrage de l’aperçu est conservé à l’export.</small>
       <p id="reactionStatus" role="status">Importe une vidéo pour commencer.</p>
     </section>
 

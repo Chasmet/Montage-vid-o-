@@ -13,7 +13,7 @@ L’APK est reconstruit et publié automatiquement après chaque modification de
 
 ## Réaction / Split Screen
 
-Le troisième onglet importe une vidéo, filme la caméra frontale en haut et affiche la vidéo en bas sur un canevas vertical 9:16 ou horizontal 16:9. Lecture, pause, déplacement dans la vidéo, volume, sourdine, zoom et repositionnement sont accessibles pendant l’enregistrement. La caméra remplit sa moitié par défaut ; le bouton « Champ large » affiche le flux entier si son ratio diffère. Pendant la lecture, seul le son de la vidéo est enregistré. Quand la vidéo est en pause, l’enregistrement continue et seul le microphone est capté. L’export Réaction nécessite la prise en charge du MP4 direct par l’appareil. Un casque évite que le son du téléphone repasse dans le microphone.
+Le troisième onglet importe une vidéo, filme la caméra frontale en haut et affiche la vidéo en bas sur un canevas vertical 9:16 ou horizontal 16:9. Lecture, pause, déplacement dans la vidéo, volume, sourdine, zoom et repositionnement sont accessibles pendant l’enregistrement. Le mode « Sans bandes » remplit les côtés du 9:16 en prolongeant les bords des sources ; l’image centrale garde son ratio et reste entière. Les modes Propre, Recadré et Libre restent disponibles. La caméra remplit sa moitié par défaut ; le bouton « Champ large » affiche le flux entier si son ratio diffère. Pendant la lecture, seul le son de la vidéo est enregistré. Quand la vidéo est en pause, l’enregistrement continue et seul le microphone est capté. L’export Réaction nécessite la prise en charge du MP4 direct par l’appareil. Un casque évite que le son du téléphone repasse dans le microphone.
 
 ## Mises à jour Android
 
