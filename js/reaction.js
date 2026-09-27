@@ -18,7 +18,7 @@
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
-  let outputFraming = 'clean';
+  let outputFraming = 'extend';
   let sourceAspect = 9 / 16;
   let cameraFit = 'cover', videoFit = 'contain';
   let cameraPanX = 0, cameraPanY = 0, videoPanX = 0, videoPanY = 0;
@@ -145,12 +145,14 @@
 
   function setFramingMode(mode) {
     if (active()) return;
-    outputFraming = ['clean', 'crop', 'free'].includes(mode) ? mode : 'clean';
+    outputFraming = ['extend', 'clean', 'crop', 'free'].includes(mode) ? mode : 'extend';
+    $('reactionFramingExtend').classList.toggle('active', outputFraming === 'extend');
     $('reactionFramingClean').classList.toggle('active', outputFraming === 'clean');
     $('reactionFramingCrop').classList.toggle('active', outputFraming === 'crop');
     $('reactionFramingFree').classList.toggle('active', outputFraming === 'free');
+    stage.classList.toggle('edge-fill', outputFraming === 'extend');
 
-    if (outputFraming === 'clean') {
+    if (outputFraming === 'extend' || outputFraming === 'clean') {
       cameraFit = 'cover';
       videoFit = 'contain';
       cameraPanX = cameraPanY = videoPanX = videoPanY = 0;
@@ -170,7 +172,9 @@
     });
     ensureDraw();
 
-    const label = outputFraming === 'clean'
+    const label = outputFraming === 'extend'
+      ? 'Sans bandes : images centrales entières, bords prolongés dans chaque moitié.'
+      : outputFraming === 'clean'
       ? 'Propre : fond noir uni, aucune duplication ni flou.'
       : outputFraming === 'crop'
         ? 'Recadré : les deux moitiés sont remplies, avec coupe si nécessaire.'
@@ -216,14 +220,40 @@
     $('reactionFitCover').classList.toggle('active', videoFit === 'cover');
   }
 
+  function drawExtendedBackdrop(element, slot, frame, mirror = false) {
+    if (element.readyState < 2 || !element.videoWidth || !element.videoHeight) return;
+    const sw = element.videoWidth;
+    const sh = element.videoHeight;
+    const edge = Math.max(1, Math.floor(sw * 0.04));
+    const left = mirror ? sw - edge : 0;
+    const right = mirror ? 0 : sw - edge;
+    const half = slot.w / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(slot.x, slot.y, slot.w, slot.h);
+    ctx.clip();
+    // Stretch narrow edge strips; the central picture keeps its proportions.
+    ctx.drawImage(element, left, 0, edge, sh, slot.x, slot.y, half, slot.h);
+    ctx.drawImage(element, right, 0, edge, sh, slot.x + half, slot.y, half, slot.h);
+    if (frame.y > slot.y) {
+      const topEdge = Math.max(1, Math.floor(sh * 0.04));
+      ctx.drawImage(element, 0, 0, sw, topEdge, slot.x, slot.y, slot.w, frame.y - slot.y);
+      const bottom = slot.y + slot.h - frame.y - frame.h;
+      if (bottom > 0) ctx.drawImage(element, 0, sh - topEdge, sw, topEdge, slot.x, frame.y + frame.h, slot.w, bottom);
+    }
+    ctx.restore();
+  }
+
   function drawForegroundInSharedFrame(element, frame, zoom, panXPercent, panYPercent, fit, mirror = false) {
     const { x, y, w, h } = frame;
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x, y, w, h);
+    if (outputFraming !== 'extend') {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x, y, w, h);
+    }
 
     if (element.readyState >= 2 && element.videoWidth && element.videoHeight) {
       const scaleBase = fit === 'contain'
@@ -249,6 +279,11 @@
     const slots = regions();
     const cameraFrameRegion = outputFrameForSlot(slots.camera);
     const videoFrameRegion = outputFrameForSlot(slots.video);
+
+    if (outputFraming === 'extend') {
+      drawExtendedBackdrop(camera, slots.camera, cameraFrameRegion, true);
+      drawExtendedBackdrop(video, slots.video, videoFrameRegion);
+    }
 
     drawForegroundInSharedFrame(
       camera,
@@ -662,6 +697,7 @@
           $('reactionRecord').disabled = !cameraStream || !fileUrl;
           $('reactionOutputVertical').disabled = false;
           $('reactionOutputHorizontal').disabled = false;
+          $('reactionFramingExtend').disabled = false;
           $('reactionFramingClean').disabled = false;
           $('reactionFramingCrop').disabled = false;
           $('reactionFramingFree').disabled = false;
@@ -670,6 +706,7 @@
 
       $('reactionOutputVertical').disabled = true;
       $('reactionOutputHorizontal').disabled = true;
+      $('reactionFramingExtend').disabled = true;
       $('reactionFramingClean').disabled = true;
       $('reactionFramingCrop').disabled = true;
       $('reactionFramingFree').disabled = true;
@@ -680,12 +717,13 @@
       $('reactionCamera').disabled = true;
       $('reactionPause').disabled = $('reactionStop').disabled = false;
       $('reactionPause').textContent = '⏸ Pause vidéo';
-      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'clean' ? 'Propre' : outputFraming === 'crop' ? 'Recadré' : 'Libre'} · MP4.`);
+      status(`REC ${outputLayout === 'horizontal' ? '16:9' : '9:16'} · ${outputFraming === 'extend' ? 'Sans bandes' : outputFraming === 'clean' ? 'Propre' : outputFraming === 'crop' ? 'Recadré' : 'Libre'} · MP4.`);
     } catch (error) {
       nativeMicActive = false;
       window.Android?.stopReactionMic?.();
       $('reactionOutputVertical').disabled = false;
       $('reactionOutputHorizontal').disabled = false;
+      $('reactionFramingExtend').disabled = false;
       $('reactionFramingClean').disabled = false;
       $('reactionFramingCrop').disabled = false;
       $('reactionFramingFree').disabled = false;
@@ -823,6 +861,7 @@
 
   $('reactionOutputVertical').addEventListener('click', () => setOutputLayout('vertical'));
   $('reactionOutputHorizontal').addEventListener('click', () => setOutputLayout('horizontal'));
+  $('reactionFramingExtend').addEventListener('click', () => setFramingMode('extend'));
   $('reactionFramingClean').addEventListener('click', () => setFramingMode('clean'));
   $('reactionFramingCrop').addEventListener('click', () => setFramingMode('crop'));
   $('reactionFramingFree').addEventListener('click', () => setFramingMode('free'));
@@ -926,7 +965,7 @@
   $('reactionTab').addEventListener('click', () => showTab('reaction'));
 
   setOutputLayout('vertical');
-  setFramingMode('clean');
+  setFramingMode('extend');
   window.addEventListener('resize', () => {
     syncSharedPreviewFrameSize();
     syncPreviewTransforms();

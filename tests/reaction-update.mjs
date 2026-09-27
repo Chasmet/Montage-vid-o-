@@ -25,7 +25,7 @@ for (const path of ['js/reaction.js', 'js/app-settings.js']) {
 for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSource', 'reactionCameraVideo',
   'reactionCameraPlaceholder', 'reactionVideoPlaceholder', 'reactionCameraQuick', 'reactionImportQuick',
   'reactionStage', 'reactionCameraHalf', 'reactionVideoHalf', 'reactionCameraFrame', 'reactionVideoFrame',
-  'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingClean', 'reactionFramingCrop', 'reactionFramingFree',
+  'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingExtend', 'reactionFramingClean', 'reactionFramingCrop', 'reactionFramingFree',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
   'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionMicGain', 'reactionZoom', 'reactionMute',
   'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
@@ -87,12 +87,15 @@ if (!reaction.includes("outputLayout === 'horizontal'") ||
     !reaction.includes("video: { x: canvas.width / 2, y: 0, w: canvas.width / 2, h: canvas.height }"))
   throw new Error('L’export 16:9 doit remplir le canvas avec deux moitiés strictement identiques.');
 if (!reaction.includes('drawForegroundInSharedFrame') ||
+    !reaction.includes('drawExtendedBackdrop(camera, slots.camera, cameraFrameRegion, true)') ||
+    !reaction.includes('drawExtendedBackdrop(video, slots.video, videoFrameRegion)') ||
     !reaction.includes('const cameraFrameRegion = outputFrameForSlot(slots.camera)') ||
     !reaction.includes('const videoFrameRegion = outputFrameForSlot(slots.video)') ||
     !reaction.includes("outputFraming === 'clean'") ||
     !reaction.includes("outputFraming === 'crop'") ||
-    !reaction.includes("outputFraming === 'free'"))
-  throw new Error('Les modes Propre, Recadré et Libre doivent contrôler le cadrage final.');
+    !reaction.includes("outputFraming === 'free'") ||
+    !reaction.includes("outputFraming === 'extend'"))
+  throw new Error('Les modes Sans bandes, Propre, Recadré et Libre doivent contrôler le cadrage final.');
 if (reaction.includes('drawBlurredSlotBackground') || reaction.includes("ctx.filter = 'blur(") || reaction.includes('const factor = 1.28'))
   throw new Error('Aucun flou, duplication ou ancien mode Smart ne doit rester dans la sortie Réaction.');
 if (reaction.includes("'video/webm") || !reaction.includes("Remix-Reaction-${suffix}-${Date.now()}.mp4"))
@@ -170,11 +173,14 @@ const drawStart = reaction.indexOf('  function drawForegroundInSharedFrame(');
 const drawEnd = reaction.indexOf('  function draw()', drawStart);
 assert.ok(drawStart >= 0 && drawEnd > drawStart);
 const draws = [];
+let blackFills = 0;
 const drawingContext = vm.createContext({
+  outputFraming: 'clean',
   ctx: {
-    save() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, restore() {},
-    translate() {}, scale() {}, drawImage(_element, x, y, width, height) {
-      draws.push({ x, y, width, height });
+    save() {}, beginPath() {}, rect() {}, clip() {}, fillRect() { blackFills++; }, restore() {},
+    translate() {}, scale() {}, drawImage(...args) {
+      const offset = args.length === 9 ? 5 : 1;
+      draws.push({ x: args[offset], y: args[offset + 1], width: args[offset + 2], height: args[offset + 3] });
     }
   }
 });
@@ -196,6 +202,25 @@ assert.equal(draws.at(-1).height, 405, 'Le mode champ large produit les bandes n
 vm.runInContext('drawForegroundInSharedFrame(landscapeSensor, frame, 1, 0, 0, "cover")',
   vm.createContext({ ...drawingContext, landscapeSensor, frame }));
 assert.equal(draws.at(-1).height, 960, 'Le mode caméra par défaut doit remplir toute sa moitié comme la vidéo.');
+const backdropStart = reaction.indexOf('  function drawExtendedBackdrop(');
+assert.ok(backdropStart >= 0 && backdropStart < drawStart);
+vm.runInContext(reaction.slice(backdropStart, drawStart), drawingContext);
+const fullHalf = { x: 0, y: 0, w: 1080, h: 960 };
+vm.runInContext('drawExtendedBackdrop(sensor, fullHalf, frame)',
+  vm.createContext({ ...drawingContext, sensor, fullHalf, frame }));
+assert.equal(draws.at(-2).width, 540);
+assert.equal(draws.at(-1).x, 540);
+assert.equal(draws.at(-1).width, 540, 'Les côtés doivent remplir toute la largeur du fichier 9:16.');
+drawingContext.outputFraming = 'extend';
+const fillsBefore = blackFills;
+vm.runInContext('drawForegroundInSharedFrame(sensor, frame, 1, 0, 0, "contain")',
+  vm.createContext({ ...drawingContext, sensor, frame }));
+assert.equal(blackFills, fillsBefore, 'Le premier plan ne doit pas réintroduire de bandes noires.');
+assert.equal(draws.at(-1).x, 0);
+assert.equal(draws.at(-1).width, 540, 'L’image centrale doit garder ses proportions et tous ses pixels.');
+assert.ok(html.includes('id="reactionFramingExtend" class="active"'));
+assert.ok(reaction.includes("setFramingMode('extend')"));
+assert.ok(read('style.css').includes('.reaction-stage.edge-fill #reactionCanvas'), 'L’aperçu doit montrer exactement le canevas exporté.');
 
 
 
