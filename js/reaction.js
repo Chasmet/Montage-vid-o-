@@ -13,7 +13,7 @@
   const canvas = $('reactionCanvas');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-  let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, micNode, micInput, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
+  let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, monitorGain, micNode, micInput, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
   let nativeMicActive = false, usedNativeMic = false, nativeMicNextTime = 0, nativeMicFramesDuringPause = 0, nativeMicSignalDuringPause = false;
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
@@ -444,8 +444,13 @@
 
   function setVolume() {
     const value = mute ? 0 : Number($('reactionVolume').value) / 100;
-    if (sourceGain) sourceGain.gain.value = value;
-    else video.volume = value;
+    if (sourceNode && monitorGain) {
+      // Le volume d'écoute ne doit jamais modifier la piste de la vidéo exportée.
+      video.volume = 1;
+      monitorGain.gain.value = value;
+    } else {
+      video.volume = value;
+    }
   }
 
   async function ensureDedicatedMicrophone() {
@@ -575,12 +580,17 @@
       await audio.resume();
       keepAudioEngineAlive();
       sourceNode ??= audio.createMediaElementSource(video);
+      // La source enregistrée reste au niveau original, indépendamment de l'écoute.
       video.volume = 1;
       sourceGain ??= audio.createGain();
+      monitorGain ??= audio.createGain();
       sourceNode.disconnect();
       sourceGain.disconnect();
+      monitorGain.disconnect();
       sourceNode.connect(sourceGain);
-      sourceGain.connect(audio.destination);
+      sourceNode.connect(monitorGain);
+      sourceGain.gain.value = 1;
+      monitorGain.connect(audio.destination);
 
       mix = audio.createMediaStreamDestination();
 
@@ -674,7 +684,7 @@
         micStream?.getTracks?.().forEach((track) => track.stop());
         micStream = null;
         try { sourceGain?.disconnect(); } catch (_) {}
-        sourceGain?.connect(audio.destination);
+        // Après l'export, garder seulement l'écoute locale au volume choisi.
         mix = null;
 
         if (!chunks.length) {
@@ -929,7 +939,7 @@
   $('reactionMute').addEventListener('click', () => {
     mute = !mute;
     setVolume();
-    $('reactionMute').textContent = mute ? '🔇 Réactiver' : '🔊 Son vidéo';
+    $('reactionMute').textContent = mute ? '🔇 Réactiver l’écoute' : '🔊 Écoute vidéo';
     $('reactionMute').setAttribute('aria-pressed', String(mute));
   });
 
