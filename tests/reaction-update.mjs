@@ -235,4 +235,46 @@ const gradle = read('app/build.gradle');
 if (!gradle.includes("rootProject.file('signing/remix-release.jks')") ||
     !gradle.includes('signingConfig signingConfigs.persistent'))
   throw new Error('Les APK debug et release doivent partager la signature permanente.');
+// Le curseur et la sourdine doivent agir uniquement sur la sortie d'écoute.
+const setVolumeStart = reaction.indexOf('  function setVolume() {');
+const setVolumeEnd = reaction.indexOf('  async function ensureDedicatedMicrophone()', setVolumeStart);
+assert.ok(setVolumeStart >= 0 && setVolumeEnd > setVolumeStart, 'Réglage d’écoute Réaction introuvable.');
+const setVolumeSource = reaction.slice(setVolumeStart, setVolumeEnd);
+const monitoring = { gain: { value: 1 } };
+const recordingVideoGain = { gain: { value: 1 } };
+const importedVideo = { volume: 0.8 };
+const volumeSlider = { value: '0' };
+const audioControl = {
+  mute: false, sourceNode: {}, monitorGain: monitoring, sourceGain: recordingVideoGain,
+  video: importedVideo, $: (id) => id === 'reactionVolume' ? volumeSlider : null
+};
+vm.createContext(audioControl);
+vm.runInContext(setVolumeSource + '\\nsetVolume();', audioControl);
+assert.equal(monitoring.gain.value, 0, 'Le téléphone doit pouvoir être silencieux avec le curseur à 0.');
+assert.equal(recordingVideoGain.gain.value, 1, 'Le curseur à 0 ne doit pas couper la vidéo enregistrée.');
+assert.equal(importedVideo.volume, 1, 'La source capturée doit rester à son niveau d’origine.');
+volumeSlider.value = '80';
+audioControl.mute = true;
+vm.runInContext('setVolume();', audioControl);
+assert.equal(monitoring.gain.value, 0, 'Le bouton sourdine doit couper uniquement l’écoute.');
+assert.equal(recordingVideoGain.gain.value, 1, 'La sourdine ne doit pas toucher à la capture.');
+audioControl.mute = false;
+vm.runInContext('setVolume();', audioControl);
+assert.equal(monitoring.gain.value, 0.8, 'L’écoute doit être réactivable après la sourdine.');
+audioControl.sourceNode = null;
+audioControl.monitorGain = null;
+volumeSlider.value = '25';
+vm.runInContext('setVolume();', audioControl);
+assert.equal(importedVideo.volume, 0.25, 'Le réglage d’écoute doit aussi fonctionner avant le premier REC.');
+const audioSetup = reaction.slice(reaction.indexOf('      sourceNode ??= audio.createMediaElementSource(video);'),
+  reaction.indexOf('      micInput = audio.createGain();'));
+for (const route of [
+  'sourceNode.connect(sourceGain);', 'sourceNode.connect(monitorGain);',
+  'sourceGain.gain.value = 1;', 'sourceGain.connect(masterCompressor);',
+  'monitorGain.connect(audio.destination);', 'masterCompressor.connect(mix);'
+]) assert.ok(audioSetup.includes(route), 'Branchement audio Réaction manquant : ' + route);
+assert.ok(!audioSetup.includes('sourceGain.connect(audio.destination)'),
+  'Le volume enregistré et le volume local doivent rester sur deux circuits distincts.');
+assert.ok(html.includes('Écoute à 0 ou coupée'), 'La garantie audio doit être visible à l’écran.');
+
 console.log('Réaction validée : cadrage caméra large, zoom sur aperçu et export, audio alterné et MP4 direct.');
