@@ -249,7 +249,7 @@ const audioControl = {
   video: importedVideo, $: (id) => id === 'reactionVolume' ? volumeSlider : null
 };
 vm.createContext(audioControl);
-vm.runInContext(setVolumeSource + '\\nsetVolume();', audioControl);
+vm.runInContext(setVolumeSource + '\nsetVolume();', audioControl);
 assert.equal(monitoring.gain.value, 0, 'Le téléphone doit pouvoir être silencieux avec le curseur à 0.');
 assert.equal(recordingVideoGain.gain.value, 1, 'Le curseur à 0 ne doit pas couper la vidéo enregistrée.');
 assert.equal(importedVideo.volume, 1, 'La source capturée doit rester à son niveau d’origine.');
