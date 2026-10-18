@@ -14,7 +14,8 @@
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
   let fileUrl, cameraStream, micStream, recorder, chunks = [], audio, sourceNode, sourceGain, monitorGain, micNode, micInput, micHighpass, micCompressor, micGain, masterCompressor, keepAliveOscillator, keepAliveGain, mix;
-  let nativeMicActive = false, usedNativeMic = false, nativeMicNextTime = 0, nativeMicFramesDuringPause = 0, nativeMicSignalDuringPause = false;
+  let nativeMicActive = false, usedNativeMic = false, nativeMicNextTime = 0, nativeMicFramesCaptured = 0, nativeMicSignalDetected = false;
+  let microphoneEnabled = true, microphoneTogglePending = false;
   let visible = false, recordingPaused = false, frameId = 0, drag = null, mute = false;
   let requestingCamera = false;
   let outputLayout = 'vertical';
@@ -506,30 +507,101 @@
 
   function desiredMicGain() {
     const base = Number($('reactionMicGain').value || 180) / 100;
-    return video.paused && active() ? Math.min(3, base * 1.35) : 0;
+    // The microphone is controlled by the user, never by the video's play/pause state.
+    return microphoneEnabled && active() ? Math.min(3, base * (video.paused ? 1.35 : 0.9)) : 0;
+  }
+
+  function syncMicrophoneButton() {
+    const button = $('reactionMicToggle');
+    button.classList.toggle('active', microphoneEnabled);
+    button.setAttribute('aria-pressed', String(microphoneEnabled));
+    button.textContent = microphoneEnabled ? '🎙 Micro ON · Couper' : '🎙 Micro OFF · Activer';
+    $('reactionMicState').textContent = active()
+      ? (microphoneEnabled ? 'Ta voix et le son original sont enregistrés.' : 'Ta voix est coupée, le son original reste.')
+      : (microphoneEnabled ? 'Micro activé pour le prochain REC.' : 'Micro désactivé pour le prochain REC.');
   }
 
   function updateMicPriority(immediate = false) {
     ensureAudioEngineRunning();
+    $('reactionAudioHint').textContent = !microphoneEnabled
+      ? 'Micro OFF : le son original reste enregistré, même pendant une écoute muette.'
+      : (video.paused && active()
+        ? 'Vidéo en pause : seule ta voix est enregistrée.'
+        : 'Vidéo en lecture : ta voix et le son original sont enregistrés ensemble.');
     if (!micGain || !audio) return;
     const target = desiredMicGain();
     const now = audio.currentTime;
     micGain.gain.cancelScheduledValues(now);
-    // Close the microphone immediately when video playback resumes; avoid any overlap.
     if (immediate || target === 0) micGain.gain.setValueAtTime(target, now);
     else {
       micGain.gain.setValueAtTime(Math.max(0, micGain.gain.value), now);
       micGain.gain.linearRampToValueAtTime(target, now + 0.02);
     }
-    $('reactionAudioHint').textContent = video.paused && active()
-      ? 'Vidéo en pause : micro ouvert, son de la vidéo arrêté.'
-      : 'Vidéo en lecture : micro coupé, son de la vidéo seul.';
+  }
+
+  async function setMicrophoneEnabled(enabled) {
+    if (microphoneTogglePending) return;
+    microphoneEnabled = Boolean(enabled);
+    // Mute the export immediately, independently of video playback and monitoring.
+    updateMicPriority(true);
+    syncMicrophoneButton();
+    if (!active()) {
+      $('reactionMicSignal').textContent = microphoneEnabled ? 'Micro prêt pour REC.' : 'Micro OFF.';
+      return;
+    }
+    if (!microphoneEnabled) {
+      nativeMicActive = false;
+      window.Android?.stopReactionMic?.();
+      try { micNode?.disconnect(); } catch (_) {}
+      micNode = null;
+      micStream?.getTracks?.().forEach((track) => track.stop());
+      micStream = null;
+      nativeMicNextTime = 0;
+      $('reactionMicSignal').textContent = 'Micro OFF · voix non enregistrée.';
+      return;
+    }
+    microphoneTogglePending = true;
+    $('reactionMicToggle').disabled = true;
+    try {
+      nativeMicActive = Boolean(window.Android?.startReactionMic?.());
+      if (nativeMicActive) {
+        usedNativeMic = true;
+      } else {
+        const stream = await ensureDedicatedMicrophone();
+        if (!active() || !microphoneEnabled || !micInput) {
+          stream.getTracks().forEach((track) => track.stop());
+          if (micStream === stream) micStream = null;
+          return;
+        }
+        micNode = audio.createMediaStreamSource(stream);
+        micNode.connect(micInput);
+      }
+      if (!active() || !microphoneEnabled) {
+        nativeMicActive = false;
+        window.Android?.stopReactionMic?.();
+        return;
+      }
+      nativeMicNextTime = 0;
+      $('reactionMicSignal').textContent = 'Micro ON · parle pour vérifier le niveau.';
+      updateMicPriority(true);
+    } catch (error) {
+      nativeMicActive = false;
+      window.Android?.stopReactionMic?.();
+      microphoneEnabled = false;
+      updateMicPriority(true);
+      $('reactionMicSignal').textContent = 'Micro inaccessible · voix coupée.';
+      status('Le micro n’a pas pu être réactivé : vérifie son autorisation Android. La vidéo continue.');
+    } finally {
+      microphoneTogglePending = false;
+      $('reactionMicToggle').disabled = false;
+      syncMicrophoneButton();
+    }
   }
 
   // Android's native microphone is independent of the imported <video> element.
   // Its PCM is scheduled on the same AudioContext clock as the exported video mix.
   window.onNativeReactionAudio = (encoded, sampleRate) => {
-    if (!nativeMicActive || !active() || !audio || !micInput || !encoded) return;
+    if (!nativeMicActive || !microphoneEnabled || !active() || !audio || !micInput || !encoded) return;
     ensureAudioEngineRunning();
     const bytes = atob(encoded);
     const length = Math.floor(bytes.length / 2);
@@ -543,19 +615,15 @@
       sum += samples[i] * samples[i];
     }
     const rms = Math.sqrt(sum / length);
-    if (video.paused) {
-      nativeMicFramesDuringPause += 1;
-      if (rms > 0.0001) nativeMicSignalDuringPause = true;
-      if (nativeMicFramesDuringPause % 8 === 0) {
-        $('reactionMicSignal').textContent = rms > 0.0001
-          ? `Micro actif · niveau ${Math.min(100, Math.round(rms * 900))}%`
-          : 'Micro ouvert · aucun signal détecté';
-      }
-      if (nativeMicFramesDuringPause === 50 && !nativeMicSignalDuringPause) {
-        status('Micro ouvert mais silencieux : vérifie son autorisation Android.');
-      }
-    } else {
-      $('reactionMicSignal').textContent = 'Micro coupé pendant la lecture de la vidéo.';
+    nativeMicFramesCaptured += 1;
+    if (rms > 0.0001) nativeMicSignalDetected = true;
+    if (nativeMicFramesCaptured % 8 === 0) {
+      $('reactionMicSignal').textContent = rms > 0.0001
+        ? `Micro ON · niveau ${Math.min(100, Math.round(rms * 900))}%`
+        : 'Micro ON · aucun signal détecté';
+    }
+    if (nativeMicFramesCaptured === 50 && !nativeMicSignalDetected) {
+      status('Micro activé mais silencieux : vérifie son autorisation Android.');
     }
     const source = audio.createBufferSource();
     source.buffer = buffer;
@@ -623,15 +691,17 @@
       micCompressor.connect(micGain);
       micGain.connect(masterCompressor);
 
-      nativeMicActive = Boolean(window.Android?.startReactionMic?.());
+      nativeMicActive = microphoneEnabled && Boolean(window.Android?.startReactionMic?.());
       usedNativeMic = nativeMicActive;
-      nativeMicFramesDuringPause = 0;
-      nativeMicSignalDuringPause = false;
+      nativeMicFramesCaptured = 0;
+      nativeMicSignalDetected = false;
       nativeMicNextTime = 0;
-      $('reactionMicSignal').textContent = nativeMicActive
-        ? 'Micro Android actif · parle pour vérifier le niveau.'
-        : 'Micro navigateur actif · parle pour vérifier le niveau.';
-      if (!nativeMicActive) {
+      $('reactionMicSignal').textContent = !microphoneEnabled
+        ? 'Micro OFF · voix non enregistrée.'
+        : nativeMicActive
+          ? 'Micro Android actif · parle pour vérifier le niveau.'
+          : 'Micro navigateur actif · parle pour vérifier le niveau.';
+      if (microphoneEnabled && !nativeMicActive) {
         await ensureDedicatedMicrophone();
         micNode = audio.createMediaStreamSource(micStream);
         micNode.connect(micInput);
@@ -665,10 +735,12 @@
       recorder.onstop = async () => {
         nativeMicActive = false;
         window.Android?.stopReactionMic?.();
-        $('reactionMicSignal').textContent = usedNativeMic
-          ? (nativeMicFramesDuringPause === 0 ? 'Micro coupé pendant toute la lecture.'
-            : nativeMicSignalDuringPause ? 'Micro capté pendant la pause.' : 'Aucun signal micro mesuré pendant la pause.')
-          : 'Prise terminée avec le micro du navigateur.';
+        $('reactionMicSignal').textContent = !microphoneEnabled
+          ? 'Prise terminée · micro OFF.'
+          : (usedNativeMic
+            ? (nativeMicFramesCaptured === 0 ? 'Aucun échantillon reçu du micro Android.'
+              : nativeMicSignalDetected ? 'Voix captée par le micro Android.' : 'Aucun signal vocal mesuré.')
+            : 'Prise terminée avec le micro du navigateur.');
         picture.getTracks().forEach((track) => track.stop());
         try { micNode?.disconnect(); } catch (_) {}
         try { micInput?.disconnect(); } catch (_) {}
@@ -705,6 +777,7 @@
           status(`Export impossible : ${error.message}`);
         } finally {
           $('reactionRecord').disabled = !cameraStream || !fileUrl;
+          syncMicrophoneButton();
           $('reactionOutputVertical').disabled = false;
           $('reactionOutputHorizontal').disabled = false;
           $('reactionFramingExtend').disabled = false;
@@ -721,6 +794,8 @@
       $('reactionFramingCrop').disabled = true;
       $('reactionFramingFree').disabled = true;
       recorder.start(500);
+      syncMicrophoneButton();
+      updateMicPriority(true);
       await video.play();
       recordingPaused = false;
       $('reactionRecord').disabled = true;
@@ -754,14 +829,14 @@
       $('reactionPause').textContent = '⏸ Pause vidéo';
       ensureAudioEngineRunning();
       updateMicPriority();
-      status('Vidéo reprise. Seul le son de la vidéo est enregistré.');
+      status(microphoneEnabled ? 'Vidéo reprise. Le son original et le micro sont enregistrés.' : 'Vidéo reprise. Micro coupé, son original conservé.');
     } else {
       video.pause();
       recordingPaused = true;
       $('reactionPause').textContent = '▶ Reprendre vidéo';
       ensureAudioEngineRunning();
       updateMicPriority();
-      status('Vidéo en pause. Seul le micro est enregistré.');
+      status(microphoneEnabled ? 'Vidéo en pause. Seul le micro est enregistré.' : 'Vidéo en pause. Le micro est coupé.');
     }
   }
 
@@ -877,6 +952,7 @@
   $('reactionFramingFree').addEventListener('click', () => setFramingMode('free'));
 
   $('reactionRecord').addEventListener('click', startRecording);
+  $('reactionMicToggle').addEventListener('click', () => setMicrophoneEnabled(!microphoneEnabled));
   $('reactionPause').addEventListener('click', pauseRecording);
   $('reactionStop').addEventListener('click', stopRecording);
   $('reactionPlay').addEventListener('click', () => {
@@ -980,7 +1056,10 @@
     syncSharedPreviewFrameSize();
     syncPreviewTransforms();
   });
+  syncMicrophoneButton();
+  updateMicPriority(true);
   window.addEventListener('beforeunload', () => {
+    window.Android?.stopReactionMic?.();
     cameraStream?.getTracks().forEach((track) => track.stop());
     micStream?.getTracks?.().forEach((track) => track.stop());
   });
