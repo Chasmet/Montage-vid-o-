@@ -133,6 +133,10 @@
         <button id="reactionPause" type="button" disabled>⏸ Pause vidéo</button>
         <button id="reactionStop" type="button" disabled>■ Fin</button>
       </div>
+      <div class="reaction-live-micro-row" aria-label="Microphone pendant l’enregistrement">
+        <button id="reactionMicToggle" class="active" type="button" aria-pressed="true">🎙 Micro ON · Couper</button>
+        <small id="reactionMicState" role="status" aria-live="polite">Micro activé pour le prochain REC.</small>
+      </div>
       <label class="reaction-import" for="reactionInput">＋ Importer / changer la vidéo</label>
       <input id="reactionInput" type="file" accept="video/*" hidden />
       <div class="reaction-controls reaction-playback-controls">

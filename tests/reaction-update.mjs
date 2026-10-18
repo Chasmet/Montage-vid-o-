@@ -28,7 +28,7 @@ for (const id of ['reactionTab', 'reactionInput', 'reactionCanvas', 'reactionSou
   'reactionOutputVertical', 'reactionOutputHorizontal', 'reactionFramingExtend', 'reactionFramingClean', 'reactionFramingCrop', 'reactionFramingFree',
   'reactionCameraZoom', 'reactionCameraFitContain', 'reactionCameraFitCover', 'reactionCameraReset',
   'reactionFitCover', 'reactionFitContain', 'reactionReset', 'reactionSeek', 'reactionVolume', 'reactionMicGain', 'reactionZoom', 'reactionMute',
-  'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop',
+  'reactionBack', 'reactionForward', 'reactionRecord', 'reactionPause', 'reactionStop', 'reactionMicToggle', 'reactionMicState',
   'settingsBtn', 'autoUpdateToggle', 'checkUpdateBtn']) {
   if (!html.includes(`id="${id}"`)) throw new Error(`Commande manquante : ${id}`);
 }
@@ -106,7 +106,7 @@ for (const marker of ['createBiquadFilter()', 'createDynamicsCompressor()', 'mic
   'micCompressor.threshold.value = -26', 'micGain = audio.createGain()',
   'ensureDedicatedMicrophone()', "getUserMedia({ video: false, audio: constraints })", 'createMediaStreamSource(micStream)',
   'keepAudioEngineAlive()', 'keepAliveOscillator.frequency.value = 20', 'masterCompressor.threshold.value = -8',
-  "status('Vidéo en pause. Seul le micro est enregistré.')", 'audioBitsPerSecond: 192_000']) {
+  "'Vidéo en pause. Seul le micro est enregistré.'", 'audioBitsPerSecond: 192_000']) {
   if (!reaction.includes(marker)) throw new Error(`Chaîne audio Réaction incomplète : ${marker}`);
 }
 if (!html.includes('id="reactionMicGain"') || !html.includes('value="180"') || !html.includes('>⏸ Pause vidéo</button>'))
@@ -115,8 +115,7 @@ if (!reaction.includes('video: videoConstraints,\n          audio: false') ||
     reaction.includes('createMediaStreamSource(cameraStream)'))
   throw new Error('Le micro doit être indépendant de la caméra et ne jamais dépendre de cameraStream.');
 
-// The supplied reaction sample kept video frames after pause but its audio was silent.
-// Capture audio natively on Android and feed the live mix while the imported video is paused.
+// Capture audio natively on Android and feed the live mix while the imported video is running OR paused.
 for (const marker of ['AudioRecord', 'MediaRecorder.AudioSource.MIC', 'AudioFormat.ENCODING_PCM_16BIT',
   'AudioRecord.READ_BLOCKING', 'onNativeReactionAudio', 'Base64.NO_WRAP']) {
   if (!nativeMic.includes(marker)) throw new Error(`Capture micro Android manquante : ${marker}`);
@@ -132,7 +131,7 @@ for (const marker of ['window.onNativeReactionAudio = (encoded, sampleRate)',
 }
 if (!html.includes('id="reactionMicSignal"')) throw new Error('Le niveau du micro doit rester visible pendant la prise.');
 
-// Exercise the actual gain policy across playback -> pause -> playback.
+// Exercise the manual microphone policy across playback, pause and ON/OFF toggles.
 const policyStart = reaction.indexOf('  function desiredMicGain()');
 const policyEnd = reaction.indexOf("  // Android's native microphone", policyStart);
 assert.ok(policyStart >= 0 && policyEnd > policyStart);
@@ -144,21 +143,34 @@ const gain = {
 };
 const hint = { textContent: '' };
 const context = vm.createContext({
-  video: { paused: false }, active: () => true,
+  video: { paused: false }, active: () => true, microphoneEnabled: true,
   $: (id) => id === 'reactionMicGain' ? { value: '180' } : hint,
   micGain: { gain }, audio: { currentTime: 10 }, ensureAudioEngineRunning() {}
 });
 vm.runInContext(reaction.slice(policyStart, policyEnd), context);
 vm.runInContext('updateMicPriority()', context);
-assert.equal(gain.value, 0, 'La vidéo en lecture doit couper entièrement le micro.');
+assert.ok(gain.value > 0, 'Micro ON : la voix doit être audible pendant la lecture vidéo.');
 context.video.paused = true;
 vm.runInContext('updateMicPriority()', context);
-assert.ok(gain.value > 1, 'La pause vidéo doit ouvrir automatiquement le micro.');
-assert.equal(gain.lastAction, 'ramp');
+assert.ok(gain.value > 1, 'Micro ON : la voix doit aussi être audible pendant la pause.');
 context.video.paused = false;
 vm.runInContext('updateMicPriority()', context);
-assert.equal(gain.value, 0, 'Reprendre la vidéo doit recouper le micro.');
-assert.equal(gain.lastAction, 'set', 'La coupure du micro doit être immédiate, sans chevauchement audible.');
+assert.ok(gain.value > 0, 'Reprendre la vidéo ne doit plus couper le microphone.');
+context.microphoneEnabled = false;
+vm.runInContext('updateMicPriority()', context);
+assert.equal(gain.value, 0, 'Micro OFF : la voix doit être coupée immédiatement pendant la lecture.');
+assert.equal(gain.lastAction, 'set', 'La coupure doit être immédiate.');
+context.video.paused = true;
+vm.runInContext('updateMicPriority()', context);
+assert.equal(gain.value, 0, 'Micro OFF : la voix doit rester coupée pendant la pause.');
+context.microphoneEnabled = true;
+vm.runInContext('updateMicPriority()', context);
+assert.ok(gain.value > 0, 'Micro ON : la voix doit pouvoir être réactivée sans arrêter REC.');
+assert.equal(gain.lastAction, 'ramp');
+assert.ok(reaction.includes("window.Android?.stopReactionMic?.()"));
+assert.ok(reaction.includes("micStream?.getTracks?.().forEach((track) => track.stop())"));
+assert.ok(html.includes('id="reactionMicToggle" class="active"'));
+assert.ok(read('style.css').includes('.reaction-live-micro-row'));
 
 // The phone may provide a landscape 4:3 camera stream even when portrait was
 // requested. Default to a full-height crop, while keeping the wide option.
@@ -277,4 +289,4 @@ assert.ok(!audioSetup.includes('sourceGain.connect(audio.destination)'),
   'Le volume enregistré et le volume local doivent rester sur deux circuits distincts.');
 assert.ok(html.includes('Écoute à 0 ou coupée'), 'La garantie audio doit être visible à l’écran.');
 
-console.log('Réaction validée : cadrage caméra large, zoom sur aperçu et export, audio alterné et MP4 direct.');
+console.log('Réaction validée : cadrage vidéo inchangé, micro ON/OFF manuel, audio vidéo préservé et MP4 direct.');
